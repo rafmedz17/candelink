@@ -1,0 +1,13 @@
+import { chromium } from '@playwright/test';
+import {mkdir} from 'node:fs/promises';
+await mkdir('test-results',{recursive:true});
+const browser=await chromium.launch();
+const page=await browser.newPage({viewport:{width:1440,height:1000}});
+page.on('pageerror',e=>console.log('PAGE ERROR:',e.message));
+await page.goto('http://localhost:3000');await page.waitForTimeout(1500);
+await page.screenshot({path:'test-results/home-desktop.png',fullPage:true});
+await page.setViewportSize({width:390,height:844});await page.screenshot({path:'test-results/home-mobile.png',fullPage:true});
+await page.goto('http://localhost:3000/jobs');await page.waitForTimeout(1500);
+await page.getByRole('button',{name:'Save job',exact:true}).first().click();
+await page.waitForTimeout(1500);console.log('BOOKMARK:',await page.getByRole('status').allTextContents());
+await browser.close();
