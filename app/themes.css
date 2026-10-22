@@ -1,0 +1,297 @@
+/* Theme overrides are shared by all public, authentication, and workspace routes. */
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  color: var(--ink);
+  background: transparent;
+}
+.theme-toggle:hover {
+  background: var(--cream);
+}
+.theme-sun {
+  display: none;
+}
+:root[data-theme="dark"] .theme-sun {
+  display: block;
+}
+:root[data-theme="dark"] .theme-moon {
+  display: none;
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --green: #70d5a9;
+  --ink: #e4eee7;
+  --muted: #a5b5ab;
+  --line: #31443a;
+  --cream: #1d2c24;
+  --color-background: #111b16;
+  --color-foreground: #e4eee7;
+  --dark-bg: #111b16;
+  --dark-surface: #1a2820;
+  --dark-raised: #22342a;
+}
+[data-theme="dark"] body {
+  background: var(--dark-bg);
+}
+[data-theme="dark"]
+  :is(
+    .site-header,
+    .trust-strip,
+    .job-card,
+    .business-teaser,
+    .filter-panel,
+    .panel,
+    .stat,
+    .float-card,
+    .hero-search,
+    .mobile-menu > div,
+    .empty-state
+  ) {
+  background: var(--dark-surface);
+  border-color: var(--line);
+}
+[data-theme="dark"] :is(.page-bg, .business-section, footer) {
+  background: #152119;
+  border-color: var(--line);
+}
+[data-theme="dark"] .hero {
+  background: linear-gradient(110deg, #14221a 0%, #14221a 60%, #1e3023 100%);
+  border-color: var(--line);
+}
+[data-theme="dark"] .brand {
+  color: var(--ink);
+}
+[data-theme="dark"] :is(.brand-symbol, .button, .skip-link) {
+  background: #19754f;
+  color: #fff;
+}
+[data-theme="dark"] .button:hover {
+  background: #23885e;
+}
+[data-theme="dark"] .button.outline {
+  background: var(--dark-surface);
+  border-color: #465e4e;
+  color: var(--ink);
+}
+[data-theme="dark"]
+  :is(
+    .button.outline:hover,
+    .button.ghost,
+    .dashboard-nav a:hover,
+    .dashboard-nav a.active,
+    .save-button:hover,
+    .mobile-menu a:hover,
+    .popular a:hover
+  ) {
+  background: var(--dark-raised);
+  color: var(--green);
+}
+[data-theme="dark"] .button.light {
+  background: #e0eee1;
+  color: #164d39;
+}
+[data-theme="dark"]
+  :is(
+    .hero-copy > p,
+    .search-location,
+    .popular,
+    .hero-foot p,
+    .float-card small,
+    .trust-strip .container > span,
+    .trust-strip .container > div,
+    .company-name,
+    .job-location,
+    .job-card-bottom small,
+    .job-card-bottom > span,
+    .sample-note,
+    .business-teaser small,
+    .step p,
+    .join-section p,
+    .join-section small,
+    .footer-main p,
+    .footer-location,
+    .footer-main > div > a:not(.brand),
+    .social-label,
+    .footer-bottom,
+    .results-head,
+    .panel p,
+    .dashboard-nav a,
+    .dashboard-nav button,
+    .stat span,
+    th,
+    .legal p
+  ) {
+  color: var(--muted);
+}
+[data-theme="dark"] :is(.hero-foot strong, .trust-strip strong) {
+  color: var(--ink);
+}
+[data-theme="dark"]
+  :is(
+    .text-link,
+    .popular a,
+    .business-teaser > div > svg,
+    .trust-strip svg,
+    .join-section > svg,
+    .save-button
+  ) {
+  color: #a4c5ac;
+}
+[data-theme="dark"]
+  :is(
+    .popular a,
+    .job-card-bottom,
+    .footer-bottom,
+    .business-section,
+    .business-teaser,
+    .trust-strip .container > span
+  ) {
+  border-color: var(--line);
+}
+[data-theme="dark"]
+  :is(
+    .field,
+    select,
+    textarea,
+    .form-stack input:not([type="checkbox"]),
+    .form-stack select,
+    .form-stack textarea
+  ) {
+  background: #142019;
+  border-color: #415748;
+  color: var(--ink);
+}
+[data-theme="dark"] input::placeholder,
+[data-theme="dark"] textarea::placeholder {
+  color: #a1afa5;
+  opacity: 1;
+}
+[data-theme="dark"] :is(.tags > span, .badge) {
+  background: #25352a;
+  border-color: #3a4e3f;
+  color: #c0cdbd;
+}
+[data-theme="dark"]
+  :is(
+    .tags > span.green-tag,
+    .float-icon,
+    .circle-check,
+    .local-icon,
+    .step-icon,
+    .mini-avatars > span,
+    .company-logo
+  ) {
+  background: #293e2e;
+  border-color: #3a5440;
+  color: #a7c894;
+}
+[data-theme="dark"] .color-1 {
+  background: #3b3024;
+  color: #ddbc91;
+  border-color: #53412e;
+}
+[data-theme="dark"] .color-2 {
+  background: #302b42;
+  color: #c5b4e7;
+  border-color: #47405e;
+}
+[data-theme="dark"] .color-3 {
+  background: #3b2d26;
+  color: #dfaf9a;
+  border-color: #554035;
+}
+[data-theme="dark"] .color-4 {
+  background: #253342;
+  color: #adc8e4;
+  border-color: #3c4c60;
+}
+[data-theme="dark"] .color-5 {
+  background: #243c34;
+  color: #9bcebd;
+  border-color: #38564a;
+}
+[data-theme="dark"] .mini-avatars :is(img, span) {
+  border-color: #14221a;
+}
+[data-theme="dark"] .step-number {
+  color: #59705e;
+}
+[data-theme="dark"] :is(.progress, .skeleton) {
+  background: #2a3d2f;
+}
+[data-theme="dark"] .form-message {
+  background: #263e2b;
+  color: #c0e2b4;
+}
+[data-theme="dark"] .form-message.error {
+  background: #432b28;
+  color: #f0bbb0;
+}
+[data-theme="dark"] ::selection {
+  background: #376548;
+  color: #fff;
+}
+[data-theme="dark"] :focus-visible {
+  outline-color: #8de1b6;
+}
+
+/* Keep the control available without crowding narrow navigation bars. */
+@media (max-width: 1150px) {
+  .nav {
+    gap: 25px;
+  }
+  .nav-actions {
+    gap: 14px;
+  }
+}
+@media (max-width: 600px) {
+  .nav {
+    gap: 10px;
+  }
+  .nav-actions {
+    gap: 9px;
+  }
+  .theme-toggle {
+    width: 32px;
+    height: 32px;
+  }
+}
+@media (max-width: 400px) {
+  .nav .brand {
+    font-size: 22px;
+  }
+  .nav .brand-symbol {
+    width: 27px;
+    height: 27px;
+    margin-right: 6px;
+  }
+  .nav-actions {
+    gap: 6px;
+  }
+  .nav-actions .button.small {
+    padding-inline: 10px;
+  }
+  .nav-actions .button.small svg {
+    display: none;
+  }
+}
+@media (max-width: 360px) {
+  .nav .brand {
+    font-size: 20px;
+  }
+  .nav .brand-symbol {
+    width: 24px;
+    height: 24px;
+  }
+  .nav {
+    gap: 8px;
+  }
+}

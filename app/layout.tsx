@@ -4,6 +4,7 @@ import "@fontsource/geist/500.css";
 import "@fontsource/geist/600.css";
 import "@fontsource/geist/700.css";
 import "./globals.css";
+import "./themes.css";
 
 export const metadata: Metadata = {
   title: "CANDELINK | Where Candelaria Connects.",
@@ -17,7 +18,15 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       data-scroll-behavior="smooth"
       className="h-full antialiased"
+      suppressHydrationWarning
     >
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){var t;try{t=localStorage.getItem('candelink-theme')}catch(e){}document.documentElement.dataset.theme=t==='dark'||t==='light'?t:window.matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'})()`,
+          }}
+        />
+      </head>
       <body className="min-h-full flex flex-col">
         <a href="#main-content" className="skip-link">
           Skip to content

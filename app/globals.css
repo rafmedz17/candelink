@@ -6,6 +6,7 @@
   --font-mono: var(--font-geist-mono);
 }
 :root {
+  color-scheme: light;
   --green: #147d59;
   --ink: #202f28;
   --muted: #758078;

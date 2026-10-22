@@ -14,6 +14,8 @@ npm run dev
 
 Open http://localhost:3000. Without Supabase configuration, public pages display **explicitly fictional sample content**. Authentication, saving, uploads, and private dashboards explain the missing configuration and never simulate a successful database write. Once configured, public pages use the database and never silently substitute samples on database errors.
 
+Use the sun/moon button in the header to switch themes. Appearance follows your device preference until you make a selection, which is saved locally and shared across tabs. The theme is applied before the first paint to avoid a light flash on dark-mode visits.
+
 ## Supabase setup
 
 1. Create a project and copy its URL and **publishable** API key into `.env.local`. Set `NEXT_PUBLIC_SITE_URL` to the actual application origin. No service-role key is used by the application.

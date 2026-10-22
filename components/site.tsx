@@ -14,6 +14,7 @@ import {
 import type { Job } from "@/lib/sample";
 import { SaveButton } from "./save-button";
 import { supabase } from "@/lib/supabase/server";
+import { ThemeToggle } from "./theme-toggle";
 export function Logo() {
   return (
     <Link href="/" className="brand" aria-label="Candelink home">
@@ -38,6 +39,7 @@ export async function Header() {
           <Link href="/#how-it-works">How it works</Link>
         </nav>
         <div className="nav-actions">
+          <ThemeToggle />
           <details className="mobile-menu">
             <summary aria-label="Open navigation">
               <Menu size={22} />
