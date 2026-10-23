@@ -16,6 +16,151 @@
   --radius-lg: 22px;
 }
 
+/* People search is part of the navigation on every viewport. */
+.site-header .nav {
+  flex-wrap: wrap;
+  padding-block: 10px;
+  gap: 10px;
+}
+.site-header:has(.nav-people-search) {
+  height: auto;
+}
+.site-header .nav > nav {
+  display: none;
+}
+.site-header .nav-actions {
+  order: 1;
+  margin-left: auto;
+}
+.nav-people-search {
+  order: 2;
+  display: flex;
+  align-items: center;
+  flex: 1 1 100%;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--surface);
+  overflow: hidden;
+}
+.nav-people-search input {
+  flex: 1;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font-size: 16px;
+}
+.nav-people-search button {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  border: 0;
+  background: transparent;
+  color: var(--green);
+  border-radius: 10px;
+}
+.nav-people-search button:hover {
+  background: var(--accent-soft);
+}
+.people-privacy-note,
+.people-result-count {
+  color: var(--muted);
+  font-size: 14px;
+  margin: 18px 0;
+}
+.people-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1fr);
+}
+.person-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.person-card:hover {
+  border-color: var(--green);
+  box-shadow: var(--shadow-md);
+}
+.person-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  color: var(--green);
+  background: var(--accent-soft);
+  font-size: 24px;
+  font-weight: 650;
+  margin-bottom: 16px;
+}
+.person-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.person-card h2 {
+  font-size: 20px;
+  margin-bottom: 8px;
+}
+.person-location {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 14px;
+  font-size: 13px;
+  color: var(--muted);
+}
+.person-card .text-link {
+  margin-top: auto;
+  padding-top: 18px;
+}
+.people-page .empty-state > svg {
+  margin: 0 auto 18px;
+  color: var(--green);
+}
+@media (min-width: 640px) {
+  .people-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 1099px) {
+  .site-header .mobile-menu {
+    display: block;
+  }
+  .site-header .account-mobile-links {
+    display: block;
+  }
+  .site-header .nav-actions > .login-link,
+  .site-header .nav-actions > .button.small {
+    display: none;
+  }
+}
+@media (min-width: 1100px) {
+  .site-header .nav {
+    flex-wrap: nowrap;
+    padding-block: 10px;
+    gap: 20px;
+  }
+  .site-header .nav > nav {
+    display: flex;
+  }
+  .nav-people-search {
+    order: 0;
+    flex: 1 1 180px;
+    max-width: 300px;
+  }
+  .people-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 * {
   min-width: 0;
 }

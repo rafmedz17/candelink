@@ -14,6 +14,7 @@ import {
   LogOut,
   Settings,
   UserRound,
+  Search,
 } from "lucide-react";
 import type { Job } from "@/lib/sample";
 import { SaveButton } from "./save-button";
@@ -69,6 +70,24 @@ export async function Header() {
           <Link href="/businesses">Local businesses</Link>
           <Link href="/#how-it-works">How it works</Link>
         </nav>
+        <form
+          action="/people"
+          role="search"
+          aria-label="Find people"
+          className="nav-people-search"
+        >
+          <input
+            name="q"
+            aria-label="Search people"
+            placeholder="Search people…"
+            maxLength={100}
+            minLength={2}
+            required
+          />
+          <button type="submit" aria-label="Find people">
+            <Search size={18} aria-hidden="true" />
+          </button>
+        </form>
         <div className="nav-actions">
           <ThemeToggle />
           {!user && (

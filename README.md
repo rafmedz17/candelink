@@ -20,6 +20,8 @@ The interface starts with single-column phone layouts and expands for tablets an
 
 ## Supabase setup
 
+Navbar people search opens `/people?q=...` and searches public jobseeker profiles by name, headline, or skills. Apply `supabase/migrations/20261023101354_people_search.sql` after the public-profiles migration before using it on a hosted project. Private and suspended profiles do not appear; results never include CV paths, email, or account permissions.
+
 1. Create a project and copy its URL and **publishable** API key into `.env.local`. Set `NEXT_PUBLIC_SITE_URL` to the actual application origin. No service-role key is used by the application.
 2. Install the Supabase CLI and inspect `supabase --help`. With Docker, start a fresh local development stack using `supabase start`, then apply the baseline with `supabase db reset` (this resets local data). For hosted projects, link with `supabase link --project-ref YOUR_REF`, review, and apply using `supabase db push`. The baseline SQL can alternatively be applied once through the trusted SQL editor on a fresh project.
 3. The migrations create tables, indexes, grants, RLS, triggers, RPCs, and Storage buckets: private `cvs` (PDF, 5 MB) and public `avatars` (JPEG/PNG, 5 MB). Logos and avatars are intentionally public. CVs use immutable owner-prefixed UUID paths and 60-second signed URLs. Apply every migration, including `20261022191840_public_profiles.sql`, after the baseline.

@@ -148,6 +148,90 @@ test("public profile is opt-in and exposes only the safe profile projection", as
     assert.equal("email" in profile, false);
   });
 });
+test("people search returns only safe, public, active profiles and honors search terms", async () => {
+  await as("anon", async () => {
+    const result = (
+      await db.query("select public.search_people('SEEK',1) as result")
+    ).rows[0].result;
+    assert.equal(result.total, 1);
+    assert.equal(result.people[0].id, ids.seeker);
+    assert.deepEqual(
+      Object.keys(result.people[0]).sort(),
+      ["id", "full_name", "headline", "location", "avatar_path"].sort(),
+    );
+    assert.equal(
+      (await db.query("select public.search_people('other',1) as result"))
+        .rows[0].result.total,
+      0,
+    );
+    assert.equal(
+      (await db.query("select public.search_people('%',1) as result")).rows[0]
+        .result.total,
+      0,
+    );
+    await assert.rejects(db.query("select * from public.profiles"));
+  });
+  await db.query("update public.profiles set suspended=true where id=$1", [
+    ids.seeker,
+  ]);
+  await as("anon", async () =>
+    assert.equal(
+      (await db.query("select public.search_people('seeker',1) as result"))
+        .rows[0].result.total,
+      0,
+    ),
+  );
+  await db.query("update public.profiles set suspended=false where id=$1", [
+    ids.seeker,
+  ]);
+  await as("seeker", () =>
+    db.query("update public.profiles set public_profile=false where id=$1", [
+      ids.seeker,
+    ]),
+  );
+  await as("anon", async () =>
+    assert.equal(
+      (await db.query("select public.search_people('seeker',1) as result"))
+        .rows[0].result.total,
+      0,
+    ),
+  );
+  await as("seeker", () =>
+    db.query("update public.profiles set public_profile=true where id=$1", [
+      ids.seeker,
+    ]),
+  );
+});
+test("people search pages are bounded and stable for signed-in callers", async () => {
+  const created = await db.query(`insert into auth.users(id,raw_user_meta_data)
+    select gen_random_uuid(),jsonb_build_object('full_name','PagingPerson ' || lpad(n::text,2,'0'))
+    from generate_series(1,13) n returning id`);
+  const fixtureIds = created.rows.map((row) => row.id);
+  await db.query(
+    "update public.profiles set public_profile=true where id=any($1::uuid[])",
+    [fixtureIds],
+  );
+  await as("other", async () => {
+    const first = (
+      await db.query("select public.search_people('pagingperson',0) as result")
+    ).rows[0].result;
+    const second = (
+      await db.query("select public.search_people('pagingperson',2) as result")
+    ).rows[0].result;
+    assert.equal(first.total, 13);
+    assert.equal(first.people.length, 12);
+    assert.equal(second.people.length, 1);
+    assert.equal(first.people[0].full_name, "PagingPerson 01");
+    assert.equal(second.people[0].full_name, "PagingPerson 13");
+    assert.equal(
+      first.people.some((person) => person.id === second.people[0].id),
+      false,
+    );
+  });
+  await db.query("delete from auth.users where id=any($1::uuid[])", [
+    fixtureIds,
+  ]);
+});
 test("unverified businesses cannot publish", async () =>
   as("owner", () =>
     assert.rejects(
