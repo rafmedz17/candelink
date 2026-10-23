@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireAccount } from "@/lib/access";
 import { DashboardLayout, SetupNeeded, Stats } from "@/components/dashboard";
 import { PageTitle } from "@/components/site";
+import { BusinessLocationPicker } from "@/components/business-location-picker";
 import {
   ActionForm,
   QuickAction,
@@ -251,6 +252,14 @@ export default async function BusinessDashboard({
             </div>
           )}
         </div>
+      )}
+      {tab === "profile" && b && (
+        <BusinessLocationPicker
+          key={b.id}
+          businessId={b.id}
+          latitude={b.latitude}
+          longitude={b.longitude}
+        />
       )}
       {(tab === "new-job" || p.edit) && b && (
         <div className="panel">

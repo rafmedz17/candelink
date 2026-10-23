@@ -33,6 +33,9 @@ export default async function Jobs({
             title="A world of opportunity, locally."
             description="Discover meaningful work with businesses in Candelaria and beyond."
           />
+          <Link className="text-link map-browse-link" href="/maps">
+            Explore opportunities on the map ↗
+          </Link>
           <form action="/jobs" className="hero-search page-search">
             {["type", "arrangement", "location", "sort"].map((name) =>
               p[name] ? (

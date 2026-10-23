@@ -2,7 +2,7 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { PGlite } from "@electric-sql/pglite";
 import { readFile, readdir } from "node:fs/promises";
-import { jobSchema } from "../lib/validation.ts";
+import { jobSchema, mapLocationSchema } from "../lib/validation.ts";
 const db = new PGlite();
 const ids = {
   seeker: "10000000-0000-4000-8000-000000000001",
@@ -1271,6 +1271,229 @@ test("owners can create and edit short descriptions while the database rejects b
         )
       ).rows.length,
       0,
+    );
+  });
+});
+
+test("business map coordinates require a valid pair and only active members can change a pin", async () => {
+  for (const point of [
+    { latitude: 0, longitude: 0 },
+    { latitude: 13.931, longitude: 121.423 },
+    { latitude: null, longitude: null },
+  ])
+    assert.equal(mapLocationSchema.safeParse(point).success, true);
+  for (const point of [
+    { latitude: 91, longitude: 0 },
+    { latitude: 0, longitude: 181 },
+    { latitude: NaN, longitude: 0 },
+    { latitude: 0, longitude: null },
+  ])
+    assert.equal(mapLocationSchema.safeParse(point).success, false);
+  await as("outsider", async () => {
+    await db.query("select public.set_business_location($1,13.931,121.423)", [
+      evergreenBusiness,
+    ]);
+    await assert.rejects(
+      db.query(
+        "update public.businesses set latitude=14,longitude=121 where id=$1",
+        [evergreenBusiness],
+      ),
+    );
+    for (const [lat, lng] of [
+      [91, 0],
+      [0, 181],
+      [0, null],
+      [null, 0],
+      [NaN, 0],
+      [Infinity, 0],
+    ]) {
+      await assert.rejects(
+        db.query("select public.set_business_location($1,$2,$3)", [
+          evergreenBusiness,
+          lat,
+          lng,
+        ]),
+      );
+    }
+  });
+  for (const who of ["anon", "seeker", "admin", "owner"])
+    await as(who, () =>
+      assert.rejects(
+        db.query("select public.set_business_location($1,0,0)", [
+          evergreenBusiness,
+        ]),
+      ),
+    );
+  const point = (
+    await db.query(
+      "select latitude,longitude from public.businesses where id=$1",
+      [evergreenBusiness],
+    )
+  ).rows[0];
+  assert.deepEqual(point, { latitude: 13.931, longitude: 121.423 });
+  await db.query("update public.profiles set suspended=true where id=$1", [
+    ids.outsider,
+  ]);
+  await as("outsider", () =>
+    assert.rejects(
+      db.query("select public.set_business_location($1,0,0)", [
+        evergreenBusiness,
+      ]),
+    ),
+  );
+  await db.query("update public.profiles set suspended=false where id=$1", [
+    ids.outsider,
+  ]);
+});
+
+test("public opportunity maps expose only safe current published jobs within the chosen bounds", async () => {
+  await as("outsider", () =>
+    db.query(
+      `insert into public.jobs(business_id,title,description,employment_type,arrangement,location,category)
+    values($1,'Hidden draft map role','Draft','Full-time','On-site','Candelaria','Services')`,
+      [evergreenBusiness],
+    ),
+  );
+  const expected = (
+    await db.query(
+      "select id from public.jobs where business_id=$1 and status='published' and (deadline is null or deadline>=current_date)",
+      [evergreenBusiness],
+    )
+  ).rows
+    .map((r) => r.id)
+    .sort();
+  assert.ok(expected.length > 0);
+  for (const who of ["anon", "outsider"])
+    await as(who, async () => {
+      const data = (
+        await db.query("select public.map_opportunities(13,14,121,122) as data")
+      ).rows[0].data;
+      assert.equal(data.total, expected.length);
+      assert.deepEqual(data.opportunities.map((j) => j.id).sort(), expected);
+      assert.deepEqual(
+        Object.keys(data.opportunities[0]).sort(),
+        [
+          "id",
+          "business_id",
+          "title",
+          "employment_type",
+          "arrangement",
+          "location",
+          "created_at",
+          "company",
+          "address",
+          "latitude",
+          "longitude",
+        ].sort(),
+      );
+      assert.equal(
+        (await db.query("select public.map_opportunities(0,1,0,1) as data"))
+          .rows[0].data.total,
+        0,
+      );
+      assert.equal(
+        (
+          await db.query(
+            "select public.map_opportunities(13,14,121,122,'Hidden draft') as data",
+          )
+        ).rows[0].data.total,
+        0,
+      );
+      assert.equal(
+        (
+          await db.query(
+            "select public.map_opportunities(13,14,121,122,'Expired local') as data",
+          )
+        ).rows[0].data.total,
+        0,
+      );
+      assert.equal(
+        (
+          await db.query(
+            "select public.map_opportunities(13,14,121,122,'Evergreen local helper') as data",
+          )
+        ).rows[0].data.total,
+        1,
+      );
+      await assert.rejects(
+        db.query("select public.map_opportunities(14,13,121,122)"),
+      );
+      await assert.rejects(
+        db.query("select public.map_opportunities(null,14,121,122)"),
+      );
+      await assert.rejects(
+        db.query("select public.map_opportunities(13,14,121,200)"),
+      );
+    });
+  await as("outsider", () =>
+    db.query("select public.set_business_location($1,null,null)", [
+      evergreenBusiness,
+    ]),
+  );
+  await as("anon", async () =>
+    assert.equal(
+      (await db.query("select public.map_opportunities(13,14,121,122) as data"))
+        .rows[0].data.total,
+      0,
+    ),
+  );
+  await as("outsider", () =>
+    db.query("select public.set_business_location($1,13.931,121.423)", [
+      evergreenBusiness,
+    ]),
+  );
+  await as("admin", () =>
+    db.query(
+      "select public.moderate($1,'business','pending','Recheck mapped business details')",
+      [evergreenBusiness],
+    ),
+  );
+  for (const who of ["anon", "outsider"])
+    await as(who, async () =>
+      assert.equal(
+        (
+          await db.query(
+            "select public.map_opportunities(13,14,121,122) as data",
+          )
+        ).rows[0].data.total,
+        0,
+      ),
+    );
+});
+
+test("map discovery bounds its results and paginates without duplicate opportunities", async () => {
+  await as("admin", () =>
+    db.query(
+      "select public.moderate($1,'business','verified','Verified mapped pagination test business')",
+      [evergreenBusiness],
+    ),
+  );
+  await db.query("select set_config('request.jwt.claim.sub','',false)");
+  await db.query(
+    `insert into public.jobs(business_id,title,description,employment_type,arrangement,location,category,status)
+    select $1,'Map paging opportunity ' || n,'Hiring','Full-time','On-site','Candelaria','Services','published'
+    from generate_series(1,105) n`,
+    [evergreenBusiness],
+  );
+  await as("anon", async () => {
+    const first = (
+      await db.query(
+        "select public.map_opportunities(13,14,121,122,'Map paging',1) as data",
+      )
+    ).rows[0].data;
+    const second = (
+      await db.query(
+        "select public.map_opportunities(13,14,121,122,'Map paging',2) as data",
+      )
+    ).rows[0].data;
+    assert.equal(first.total, 105);
+    assert.equal(first.opportunities.length, 100);
+    assert.equal(second.opportunities.length, 5);
+    assert.equal(
+      new Set(
+        [...first.opportunities, ...second.opportunities].map((j) => j.id),
+      ).size,
+      105,
     );
   });
 });

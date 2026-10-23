@@ -64,6 +64,10 @@ export default async function Home() {
                   Find jobs <ArrowUpRight size={17} />
                 </button>
               </form>
+              <Link className="text-link map-browse-link" href="/maps">
+                <MapPin size={16} aria-hidden="true" /> Explore nearby
+                opportunities on the map ↗
+              </Link>
               <div className="popular">
                 <span>Popular searches:</span>
                 {["Administrative", "Sales", "Fresh graduate"].map((t) => (

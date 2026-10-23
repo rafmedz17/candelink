@@ -22,6 +22,14 @@ export const businessSchema = z.object({
   contact_email: z.email(),
   operating_details: z.string().max(2000),
 });
+export const mapLocationSchema = z
+  .object({
+    latitude: z.number().min(-90).max(90).nullable(),
+    longitude: z.number().min(-180).max(180).nullable(),
+  })
+  .refine((value) => (value.latitude === null) === (value.longitude === null), {
+    message: "Choose latitude and longitude together.",
+  });
 export const jobSchema = z
   .object({
     business_id: z.uuid(),

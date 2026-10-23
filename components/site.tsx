@@ -72,6 +72,7 @@ export async function Header() {
         <nav aria-label="Main navigation">
           <Link href="/jobs">Find a job</Link>
           <Link href="/businesses">Local businesses</Link>
+          <Link href="/maps">Map</Link>
           <Link href="/#how-it-works">How it works</Link>
         </nav>
         <PeopleSearch currentUserId={user?.id} />
@@ -85,6 +86,7 @@ export async function Header() {
             >
               <Link href="/jobs">Find a job</Link>
               <Link href="/businesses">Local businesses</Link>
+              <Link href="/maps">Opportunity map</Link>
               <Link href="/#how-it-works">How it works</Link>
               <Link href="/login">Log in</Link>
               <Link href="/register">Sign up</Link>
@@ -135,6 +137,7 @@ export async function Header() {
               <div className="account-mobile-links">
                 <Link href="/jobs">Find a job</Link>
                 <Link href="/businesses">Local businesses</Link>
+                <Link href="/maps">Opportunity map</Link>
                 <Link href="/#how-it-works">How it works</Link>
               </div>
               <form action={logout}>

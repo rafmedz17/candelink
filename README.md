@@ -20,6 +20,14 @@ The interface starts with single-column phone layouts and expands for tablets an
 
 ## Supabase setup
 
+### Business pins and opportunity map
+
+Apply `20261023144902_business_opportunity_map.sql` after the earlier migrations. In **Business workspace → Business profile**, owners can click the map, drag their pin, enter latitude/longitude, or request their current location, then choose **Save business location**. A business profile must exist first. Only active members can save/remove its pin; location changes do not change the business's existing verification decision. Editing the business's other details still follows the existing re-verification flow.
+
+The public **Map** at `/maps` (also linked from home and job search) shows published, unexpired jobs from verified businesses with saved pins. One marker groups a business's opportunities, with job links and directions in the adjacent list. Moving the map or searching changes the area results; pages contain at most 100 opportunities. Unpinned businesses still appear in normal job discovery. Coordinates are owner-provided business locations, not verified GPS measurements. No applicant location is collected. Browser geolocation is requested only when an owner clicks the location button and is not saved until they choose Save.
+
+Leaflet 1.9.4 is bundled locally. The default basemap uses OpenStreetMap's standard HTTPS tiles with visible attribution, browser caching, and no bulk/offline downloads. No paid map API key is required. Standard tiles are a shared, best-effort service; use a suitable provider for larger deployments and follow the [OpenStreetMap tile usage policy](https://operations.osmfoundation.org/policies/tiles/). Optional `NEXT_PUBLIC_MAP_TILE_URL` and `NEXT_PUBLIC_MAP_ATTRIBUTION` configure another provider; keep its required attribution. Map controls and the jobs list remain usable if imagery fails to load.
+
 ### Friends and messages
 
 Apply all migrations in timestamp order, including `20261023104300_friends_messages.sql`, to enable friend requests and private messaging. Use **Add friend** on a public profile, then accept or decline requests on **Friends**. Only accepted friends can send text messages (up to 4,000 characters); a conversation refreshes every 10 seconds while visible. The account menu and all role workspaces include Friends and Messages.
