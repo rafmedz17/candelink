@@ -7,8 +7,11 @@ import {
   Bell,
   ShieldCheck,
   Flag,
+  UsersRound,
+  MessageCircle,
 } from "lucide-react";
 import { Header, PageTitle } from "./site";
+import { ActivityBadge } from "./activity-badge";
 export function DashboardLayout({
   children,
   role = "jobseeker",
@@ -73,9 +76,30 @@ export function DashboardLayout({
                 >
                   <I size={18} />
                   {String(label)}
+                  {key === "notifications" && (
+                    <ActivityBadge kind="notifications" />
+                  )}
                 </Link>
               );
             })}
+            <Link
+              href="/friends"
+              className={active === "friends" ? "active" : ""}
+              aria-current={active === "friends" ? "page" : undefined}
+            >
+              <UsersRound size={18} />
+              Friends
+              <ActivityBadge kind="friends" />
+            </Link>
+            <Link
+              href="/messages"
+              className={active === "messages" ? "active" : ""}
+              aria-current={active === "messages" ? "page" : undefined}
+            >
+              <MessageCircle size={18} />
+              Messages
+              <ActivityBadge kind="messages" />
+            </Link>
           </nav>
           <div className="dashboard-content">{children}</div>
         </div>

@@ -6,6 +6,7 @@ import "@fontsource/geist/700.css";
 import "./globals.css";
 import "./themes.css";
 import "./ux.css";
+import "./social.css";
 
 export const metadata: Metadata = {
   title: "CANDELINK | Where Candelaria Connects.",

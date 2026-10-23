@@ -124,20 +124,20 @@ export default async function JobDetail({
                     <dt>Employment</dt>
                     <dd>{job.employment_type}</dd>
                   </div>
-                  {job.deadline && (
-                    <div>
-                      <dt>Apply before</dt>
-                      <dd>
-                        {new Date(
-                          `${job.deadline}T00:00:00`,
-                        ).toLocaleDateString("en-PH", {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
-                        })}
-                      </dd>
-                    </div>
-                  )}
+                  <div>
+                    <dt>Application deadline</dt>
+                    <dd>
+                      {job.deadline
+                        ? new Date(
+                            `${job.deadline}T00:00:00`,
+                          ).toLocaleDateString("en-PH", {
+                            month: "short",
+                            day: "numeric",
+                            year: "numeric",
+                          })
+                        : "No deadline"}
+                    </dd>
+                  </div>
                 </dl>
                 {job.business_id && (
                   <Link

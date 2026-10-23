@@ -14,7 +14,9 @@ import {
   LogOut,
   Settings,
   UserRound,
-  Search,
+  UsersRound,
+  MessageCircle,
+  Bell,
 } from "lucide-react";
 import type { Job } from "@/lib/sample";
 import { SaveButton } from "./save-button";
@@ -22,6 +24,8 @@ import { supabase } from "@/lib/supabase/server";
 import { ThemeToggle } from "./theme-toggle";
 import { logout } from "@/app/actions";
 import { NavigationMenu } from "./navigation-menu";
+import { PeopleSearch } from "./people-search";
+import { ActivityBadge } from "./activity-badge";
 export function Logo() {
   return (
     <Link href="/" className="brand" aria-label="Candelink home">
@@ -70,24 +74,7 @@ export async function Header() {
           <Link href="/businesses">Local businesses</Link>
           <Link href="/#how-it-works">How it works</Link>
         </nav>
-        <form
-          action="/people"
-          role="search"
-          aria-label="Find people"
-          className="nav-people-search"
-        >
-          <input
-            name="q"
-            aria-label="Search people"
-            placeholder="Search people…"
-            maxLength={100}
-            minLength={2}
-            required
-          />
-          <button type="submit" aria-label="Find people">
-            <Search size={18} aria-hidden="true" />
-          </button>
-        </form>
+        <PeopleSearch currentUserId={user?.id} />
         <div className="nav-actions">
           <ThemeToggle />
           {!user && (
@@ -108,12 +95,18 @@ export async function Header() {
               className="account-menu"
               label="Open account menu"
               trigger={
-                avatarUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element -- The authenticated user's avatar is served from their configured public Storage bucket.
-                  <img className="account-avatar" src={avatarUrl} alt="" />
-                ) : (
-                  <UserRound size={18} aria-hidden="true" />
-                )
+                <span className="account-trigger">
+                  {avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element -- The authenticated user's avatar is served from their configured public Storage bucket.
+                    <img className="account-avatar" src={avatarUrl} alt="" />
+                  ) : (
+                    <UserRound size={18} aria-hidden="true" />
+                  )}
+                  <ActivityBadge
+                    kind="all"
+                    className="account-activity-badge"
+                  />
+                </span>
               }
             >
               <span className="account-menu-label">Your account</span>
@@ -123,6 +116,22 @@ export async function Header() {
               <Link href={profileHref}>
                 <Settings size={15} aria-hidden="true" /> {profileLabel}
               </Link>
+              <Link href="/friends">
+                <UsersRound size={15} aria-hidden="true" />
+                Friends
+                <ActivityBadge kind="friends" />
+              </Link>
+              <Link href="/messages">
+                <MessageCircle size={15} aria-hidden="true" />
+                Messages
+                <ActivityBadge kind="messages" />
+              </Link>
+              {profile?.role !== "admin" && (
+                <Link href={`${dashboardHref}?tab=notifications`}>
+                  <Bell size={15} aria-hidden="true" /> Notifications
+                  <ActivityBadge kind="notifications" />
+                </Link>
+              )}
               <div className="account-mobile-links">
                 <Link href="/jobs">Find a job</Link>
                 <Link href="/businesses">Local businesses</Link>

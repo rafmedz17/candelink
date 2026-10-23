@@ -28,14 +28,22 @@ export default async function People({
   let total = 0;
   let unavailable = !db;
   if (db && q.length >= 2) {
-    const { data, error } = await db.rpc("search_people", {
-      keyword: q,
-      page_number: page,
-    });
+    const [{ data: auth }, { data, error }] = await Promise.all([
+      db.auth.getUser(),
+      db.rpc("search_people", {
+        keyword: q,
+        page_number: page,
+      }),
+    ]);
     unavailable = Boolean(error);
     if (!error && data) {
-      people = data.people as Person[];
-      total = data.total as number;
+      const matches = data.people as Person[];
+      // Also protect the page while hosted projects await the search migration.
+      people = matches.filter((person) => person.id !== auth.user?.id);
+      total = Math.max(
+        0,
+        (data.total as number) - (matches.length - people.length),
+      );
     }
   }
   const pageHref = (next: number) =>
@@ -69,7 +77,8 @@ export default async function People({
             <button className="button">Search profiles</button>
           </form>
           <p className="people-privacy-note">
-            Only profiles made public by their owners appear here.
+            Only profiles made public by their owners appear here. Your own
+            profile is hidden when you’re logged in.
           </p>
           {unavailable ? (
             <div className="empty-state" role="status">

@@ -13,7 +13,7 @@ export type Job = {
   responsibilities?: string;
   qualifications?: string;
   created_at: string;
-  deadline?: string;
+  deadline?: string | null;
   status?: string;
   saved?: boolean;
 };

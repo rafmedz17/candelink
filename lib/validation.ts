@@ -26,7 +26,11 @@ export const jobSchema = z
   .object({
     business_id: z.uuid(),
     title: z.string().min(4).max(150),
-    description: z.string().min(30).max(15000),
+    description: z
+      .string()
+      .trim()
+      .min(1, "Enter a job description.")
+      .max(15000),
     responsibilities: z.string().max(8000),
     qualifications: z.string().max(8000),
     employment_type: z.enum([
@@ -41,7 +45,10 @@ export const jobSchema = z
     salary_min: z.coerce.number().nonnegative().max(10000000),
     salary_max: z.coerce.number().nonnegative().max(10000000),
     vacancies: z.coerce.number().int().min(1).max(1000),
-    deadline: z.iso.date(),
+    deadline: z.preprocess(
+      (value) => (value === "" || value == null ? null : value),
+      z.iso.date().nullable(),
+    ),
   })
   .refine((v) => v.salary_max >= v.salary_min, {
     message: "Maximum salary must be at least the minimum.",

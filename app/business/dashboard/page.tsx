@@ -255,6 +255,10 @@ export default async function BusinessDashboard({
       {(tab === "new-job" || p.edit) && b && (
         <div className="panel">
           <h2>{edit ? "Edit opportunity" : "Create an opportunity"}</h2>
+          <p>
+            Leave the deadline blank to accept applications until you close the
+            listing.
+          </p>
           <ActionForm
             kind="job"
             hidden={{ business_id: b.id, ...(edit ? { id: edit.id } : {}) }}
@@ -267,7 +271,7 @@ export default async function BusinessDashboard({
               },
               {
                 name: "description",
-                label: "Description (at least 30 characters)",
+                label: "Description",
                 type: "textarea",
                 value: edit?.description,
                 required: true,
@@ -328,10 +332,9 @@ export default async function BusinessDashboard({
               },
               {
                 name: "deadline",
-                label: "Application deadline",
+                label: "Application deadline (optional)",
                 type: "date",
-                value: edit?.deadline,
-                required: true,
+                value: edit?.deadline ?? "",
               },
             ]}
             submit="Save draft / changes"
@@ -382,7 +385,7 @@ export default async function BusinessDashboard({
                     </p>
                     <p>Responsibilities: {j.responsibilities}</p>
                     <p>Qualifications: {j.qualifications}</p>
-                    <p>Deadline: {j.deadline}</p>
+                    <p>Deadline: {j.deadline || "No deadline"}</p>
                   </details>
                 </div>
                 <div className="tags job-listing-actions">

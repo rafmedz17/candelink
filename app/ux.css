@@ -33,15 +33,21 @@
   margin-left: auto;
 }
 .nav-people-search {
+  position: relative;
   order: 2;
-  display: flex;
-  align-items: center;
   flex: 1 1 100%;
-  gap: 6px;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: var(--surface);
-  overflow: hidden;
+}
+.people-search-form {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.nav-people-search:focus-within {
+  border-color: var(--green);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 .nav-people-search input {
   flex: 1;
@@ -52,6 +58,10 @@
   background: transparent;
   color: var(--ink);
   font-size: 16px;
+}
+.nav-people-search input:focus-visible {
+  outline: none;
+  box-shadow: none;
 }
 .nav-people-search button {
   display: grid;
@@ -64,6 +74,111 @@
 }
 .nav-people-search button:hover {
   background: var(--accent-soft);
+}
+.people-suggestions {
+  position: absolute;
+  top: calc(100% + 8px);
+  inset-inline: 0;
+  z-index: 80;
+  max-height: min(60svh, 480px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+}
+.people-suggestions-label {
+  padding: 12px 14px 6px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.people-suggestion {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 68px;
+  padding: 10px 14px;
+  color: var(--ink);
+  text-decoration: none;
+}
+.people-suggestion:hover,
+.people-suggestion[aria-selected="true"] {
+  background: var(--accent-soft);
+}
+.search-person-avatar {
+  display: grid;
+  place-items: center;
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  overflow: hidden;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--green);
+}
+.search-person-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.search-person-copy {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  overflow-wrap: anywhere;
+}
+.search-person-copy strong {
+  font-size: 14px;
+  line-height: 1.4;
+  font-weight: 600;
+}
+.search-person-copy > span {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.people-suggestion > svg {
+  flex-shrink: 0;
+  color: var(--muted);
+}
+.people-suggestions-status {
+  margin: 0;
+  padding: 16px 14px;
+  color: var(--muted);
+  font-size: 14px;
+}
+.people-search-all {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 44px;
+  gap: 8px;
+  padding: 12px 14px;
+  border-top: 1px solid var(--line);
+  color: var(--green);
+  font-size: 13px;
+  font-weight: 600;
+}
+.people-search-all:hover {
+  background: var(--accent-soft);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .search-spinner {
+    animation: search-spin 1s linear infinite;
+  }
+}
+@keyframes search-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 .people-privacy-note,
 .people-result-count {
@@ -1059,7 +1174,9 @@ summary {
   overflow-wrap: anywhere;
 }
 
-details[open] > summary {
+/* Disclosure spacing belongs to content panels, not navbar dropdown triggers. */
+.panel details[open] > summary,
+details.panel[open] > summary {
   margin-bottom: 12px;
 }
 

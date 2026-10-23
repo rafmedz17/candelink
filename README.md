@@ -20,7 +20,21 @@ The interface starts with single-column phone layouts and expands for tablets an
 
 ## Supabase setup
 
-Navbar people search opens `/people?q=...` and searches public jobseeker profiles by name, headline, or skills. Apply `supabase/migrations/20261023101354_people_search.sql` after the public-profiles migration before using it on a hosted project. Private and suspended profiles do not appear; results never include CV paths, email, or account permissions.
+### Friends and messages
+
+Apply all migrations in timestamp order, including `20261023104300_friends_messages.sql`, to enable friend requests and private messaging. Use **Add friend** on a public profile, then accept or decline requests on **Friends**. Only accepted friends can send text messages (up to 4,000 characters); a conversation refreshes every 10 seconds while visible. The account menu and all role workspaces include Friends and Messages.
+
+Either person can unfriend; this disables new messages while preserving their conversation history. Only participants can read a conversation, including after unfriending; application administrators have no message-read policy. Suspended accounts cannot use these features. There are daily limits of 20 friend requests and 500 messages, plus a 24-hour cooldown before re-requesting after a decline/removal. Message retries use a stable client ID to avoid duplicate sends. Connections paginate in batches of 50, and message history in batches of 30. Messages are stored in the project database; end-to-end encryption, attachments, push notifications, blocking, and read receipts are not implemented.
+
+Apply `20261023140050_unread_conversations.sql` after the friends/messages migration for conversation cards with message previews and unread counts. Numbered badges in workspace navigation and the account menu show unread incoming messages, incoming pending friend requests, and unread notifications; zero counts are hidden and large counts display as `99+`. Counts refresh every 10 seconds while the tab is visible, on focus, and after friend/read actions. Opening a conversation marks messages through the latest displayed message as read only when the bottom of the thread is visible in the active tab. Viewing older history does not clear newer unread messages. Read positions are private to each account and never shown to the other participant. Run the migration before using the counters on your hosted project.
+
+### Project configuration
+
+Application deadlines are optional. Apply `20261023141934_optional_job_deadline.sql` to allow a blank deadline when creating or editing a job. Published jobs without a deadline stay discoverable and accept applications until the business closes them (or loses verification). Supplied dates still expire after that date. Clearing an existing deadline saves `null`; the listing preview and job details display **No deadline**.
+
+Job descriptions are required but have no 30-character minimum. Apply `20261023142607_short_job_descriptions.sql` to accept short descriptions in the database. Empty or whitespace-only descriptions are rejected; the maximum remains 15,000 characters. Business-profile descriptions retain their existing requirements.
+
+Navbar people search suggests up to six public jobseeker profiles after typing two characters, matching names, headlines, or skills. Select a person to open their profile, use the arrow keys and Enter, or choose **See all results** to open `/people?q=...`. The dropdown supports touch, Escape, and outside-click dismissal. Apply `supabase/migrations/20261023101354_people_search.sql` after the public-profiles migration, then apply `20261023132944_people_search_exclude_self.sql` to exclude the signed-in user's own account from results and pagination counts. Private and suspended profiles do not appear; results never include CV paths, email, or account permissions.
 
 1. Create a project and copy its URL and **publishable** API key into `.env.local`. Set `NEXT_PUBLIC_SITE_URL` to the actual application origin. No service-role key is used by the application.
 2. Install the Supabase CLI and inspect `supabase --help`. With Docker, start a fresh local development stack using `supabase start`, then apply the baseline with `supabase db reset` (this resets local data). For hosted projects, link with `supabase link --project-ref YOUR_REF`, review, and apply using `supabase db push`. The baseline SQL can alternatively be applied once through the trusted SQL editor on a fresh project.
@@ -106,7 +120,7 @@ Before deployment, verify these against a staging project:
 ## Known limitations
 
 - No hosted Supabase project, GitHub remote, or Vercel deployment has been configured by this implementation. Live Auth, email, PostgREST joins, and Storage require the staging checks above. Docker was unavailable, so the full local Supabase stack was not exercised.
-- Education, experience, and skills are editable text in v1. Jobseekers can opt in to a public, link-shareable professional profile; their email, CV, applications, saved jobs, and notifications remain private. Structured entries, networking connections, and a social feed remain future work. Recommended jobs are recent listings, not personalized rankings.
+- Education, experience, and skills are editable text in v1. Jobseekers can opt in to a public, link-shareable professional profile; their email, CV, applications, saved jobs, and notifications remain private. Friend requests and text messaging are supported; structured profile entries and a social feed remain future work. Recommended jobs are recent listings, not personalized rankings.
 - Membership supports multiple users in the schema; invitations and membership administration require a trusted operator. Dashboard navigation defaults to the first owned business; use its business selector to switch.
 - No automated identity-document verification, malware scanning, hiring email integration, realtime subscriptions, old-CV cleanup, or automated account deletion. MIME/signature checks do not prove a document is harmless.
 - Admin/business tables use bounded provider results rather than large-dataset pagination. Public job discovery uses database-side filters, sorting, and eight-record pagination. Search uses case-insensitive keyword matching; a full-text index is included for future ranking.

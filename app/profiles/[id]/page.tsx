@@ -4,6 +4,7 @@ import { MapPin } from "lucide-react";
 import { notFound } from "next/navigation";
 import { Footer, Header } from "@/components/site";
 import { supabase } from "@/lib/supabase/server";
+import { FriendActions } from "@/components/social-controls";
 
 type PublicProfile = {
   id: string;
@@ -36,6 +37,20 @@ export default async function PublicProfilePage({
   const { data } = await db.rpc("get_public_profile", { profile_id: id });
   const profile = data as PublicProfile | null;
   if (!profile) notFound();
+
+  const {
+    data: { user },
+  } = await db.auth.getUser();
+  const connection =
+    user && user.id !== id
+      ? await db
+          .from("friendships")
+          .select("id,status,requester_id,recipient_id")
+          .or(
+            `and(requester_id.eq.${user.id},recipient_id.eq.${id}),and(requester_id.eq.${id},recipient_id.eq.${user.id})`,
+          )
+          .maybeSingle()
+      : null;
 
   const avatarUrl = profile.avatar_path
     ? db.storage.from("avatars").getPublicUrl(profile.avatar_path).data
@@ -79,6 +94,28 @@ export default async function PublicProfilePage({
                   <span>
                     <MapPin size={15} aria-hidden="true" /> {profile.location}
                   </span>
+                )}
+              </div>
+              <div className="profile-social-actions">
+                {!user ? (
+                  <Link className="button" href="/login">
+                    Log in to add friend
+                  </Link>
+                ) : user.id === id ? (
+                  <Link className="button outline" href="/friends">
+                    Your friends
+                  </Link>
+                ) : connection?.error ? (
+                  <p role="status">
+                    Friend requests are temporarily unavailable.
+                  </p>
+                ) : (
+                  <FriendActions
+                    targetId={id}
+                    status={connection?.data?.status}
+                    connectionId={connection?.data?.id}
+                    incoming={connection?.data?.recipient_id === user.id}
+                  />
                 )}
               </div>
               {profile.introduction && (
