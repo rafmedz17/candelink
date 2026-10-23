@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Store, ArrowUpRight } from "lucide-react";
+import { Store, ArrowUpRight, MapPin, Search } from "lucide-react";
 import { Header, Footer, PageTitle } from "@/components/site";
 import { samples } from "@/lib/business-samples";
 import { supabase } from "@/lib/supabase/server";
@@ -24,19 +24,16 @@ export default async function Businesses({
   return (
     <>
       <Header />
-      <main id="main-content" className="page-bg">
+      <main id="main-content" className="page-bg businesses-page">
         <div className="container">
           <PageTitle
             eyebrow="ROOTED HERE. GROWING TOGETHER."
             title="Meet your local business community."
             description="Discover the people and teams making Candelaria thrive."
           />
-          <form
-            className="hero-search"
-            style={{ width: "100%", marginTop: 0, marginBottom: 30 }}
-          >
+          <form className="hero-search page-search">
+            <Search size={20} aria-hidden="true" />
             <input
-              style={{ flex: 1 }}
               aria-label="Search businesses"
               name="q"
               placeholder="Search business name or category"
@@ -46,14 +43,23 @@ export default async function Businesses({
           </form>
           <div className="jobs-grid">
             {businesses.map((b, i) => (
-              <Link href={`/businesses/${b.id}`} key={b.id} className="panel">
+              <Link
+                href={`/businesses/${b.id}`}
+                key={b.id}
+                className="panel business-directory-card"
+              >
                 <span className={`company-logo color-${i}`}>
                   <Store size={23} />
                 </span>
-                <h2 style={{ marginTop: 20, fontSize: 21 }}>{b.name}</h2>
-                <span className="badge">{b.category}</span>
-                <p style={{ marginTop: 15 }}>{b.description}</p>
-                <span className="text-link" style={{ marginTop: 20 }}>
+                <h2>{b.name}</h2>
+                <div className="tags">
+                  <span>{b.category}</span>
+                </div>
+                <span className="business-location">
+                  <MapPin size={15} aria-hidden="true" /> {b.address}
+                </span>
+                <p>{b.description}</p>
+                <span className="text-link">
                   Meet the business <ArrowUpRight size={16} />
                 </span>
               </Link>

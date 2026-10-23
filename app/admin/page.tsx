@@ -1,7 +1,9 @@
+import Link from "next/link";
+import { Search } from "lucide-react";
 import { requireAccount } from "@/lib/access";
 import { DashboardLayout, SetupNeeded, Stats } from "@/components/dashboard";
 import { PageTitle } from "@/components/site";
-import { ActionForm } from "@/components/forms";
+import { ActionForm, PhotoUpload } from "@/components/forms";
 export default async function Admin({
   searchParams,
 }: {
@@ -35,6 +37,11 @@ export default async function Admin({
     .select("*,businesses(name)")
     .eq("status", "pending");
   const q = p.q?.toLowerCase() || "";
+  const filteredBusinesses = (businesses || []).filter((b) =>
+    `${b.name} ${b.verification_status}`.toLowerCase().includes(q),
+  );
+  const visibleBusinesses =
+    tab === "overview" ? filteredBusinesses.slice(0, 5) : filteredBusinesses;
   return (
     <DashboardLayout role="admin" active={tab}>
       <PageTitle
@@ -54,20 +61,74 @@ export default async function Admin({
           ]}
         />
       )}
-      <form
-        className="hero-search"
-        style={{ width: "100%", marginTop: 0, marginBottom: 25 }}
-      >
-        <input type="hidden" name="tab" value={tab} />
-        <input
-          name="q"
-          defaultValue={p.q}
-          placeholder="Search records"
-          aria-label="Search administrative records"
-          style={{ flex: 1 }}
-        />
-        <button className="button small">Search</button>
-      </form>
+      {tab === "profile" && (
+        <>
+          <PhotoUpload path={a.profile.avatar_path} />
+          <div className="panel">
+            <h2>Your administrator profile</h2>
+            <ActionForm
+              kind="profile"
+              fields={[
+                {
+                  name: "full_name",
+                  label: "Full name",
+                  value: a.profile.full_name,
+                  required: true,
+                },
+                {
+                  name: "headline",
+                  label: "Professional headline",
+                  value: a.profile.headline,
+                },
+                {
+                  name: "location",
+                  label: "Location",
+                  value: a.profile.location,
+                },
+                {
+                  name: "introduction",
+                  label: "A little about you",
+                  type: "textarea",
+                  value: a.profile.introduction,
+                },
+                {
+                  name: "skills",
+                  label: "Skills (comma separated)",
+                  value: a.profile.skills,
+                },
+                {
+                  name: "education",
+                  label: "Education",
+                  type: "textarea",
+                  value: a.profile.education,
+                },
+                {
+                  name: "experience",
+                  label: "Work experience",
+                  type: "textarea",
+                  value: a.profile.experience,
+                },
+              ]}
+            />
+          </div>
+        </>
+      )}
+      {tab !== "profile" && (
+        <form
+          className="hero-search page-search"
+          style={{ width: "100%", marginTop: 0, marginBottom: 25 }}
+        >
+          <input type="hidden" name="tab" value={tab} />
+          <Search size={20} aria-hidden="true" />
+          <input
+            name="q"
+            defaultValue={p.q}
+            placeholder="Search records"
+            aria-label="Search administrative records"
+          />
+          <button className="button small">Search</button>
+        </form>
+      )}
       {["overview", "businesses"].includes(tab) && (
         <>
           <div className="panel">
@@ -82,42 +143,65 @@ export default async function Admin({
             ))}
             {!requests?.length && <p>The verification queue is clear.</p>}
           </div>
-          {businesses
-            ?.filter((b) =>
-              `${b.name} ${b.verification_status}`.toLowerCase().includes(q),
-            )
-            .map((b) => (
-              <details className="panel" key={b.id}>
-                <summary>
-                  {b.name} · {b.verification_status}
-                </summary>
-                <p>
-                  {b.description}
-                  <br />
-                  {b.address}
-                  <br />
-                  {b.business_contacts?.contact_email}
-                </p>
-                <ActionForm
-                  kind="moderate"
-                  hidden={{ target: "business", id: b.id }}
-                  fields={[
-                    {
-                      name: "decision",
-                      label: "Decision",
-                      options: ["verified", "rejected", "suspended", "pending"],
-                    },
-                    {
-                      name: "reason",
-                      label: "Recorded reason (at least 10 characters)",
-                      type: "textarea",
-                      required: true,
-                    },
-                  ]}
-                  submit="Record decision"
-                />
-              </details>
-            ))}
+          <div className="workspace-list-heading">
+            <div>
+              <h2>
+                {tab === "overview" ? "Recent business reviews" : "Businesses"}
+              </h2>
+              <p>
+                {filteredBusinesses.length} matching business
+                {filteredBusinesses.length === 1 ? "" : "es"}
+              </p>
+            </div>
+            {tab === "overview" && filteredBusinesses.length > 5 && (
+              <Link className="text-link" href="/admin?tab=businesses">
+                Review all businesses
+              </Link>
+            )}
+          </div>
+          {visibleBusinesses.map((b) => (
+            <details className="panel" key={b.id}>
+              <summary className="review-summary">
+                <span>{b.name}</span>
+                <span
+                  className={`badge status-badge status-badge--${b.verification_status}`}
+                >
+                  {b.verification_status}
+                </span>
+              </summary>
+              <p>
+                {b.description}
+                <br />
+                {b.address}
+                <br />
+                {b.business_contacts?.contact_email}
+              </p>
+              <ActionForm
+                kind="moderate"
+                hidden={{ target: "business", id: b.id }}
+                fields={[
+                  {
+                    name: "decision",
+                    label: "Decision",
+                    options: ["verified", "rejected", "suspended", "pending"],
+                  },
+                  {
+                    name: "reason",
+                    label: "Recorded reason (at least 10 characters)",
+                    type: "textarea",
+                    required: true,
+                  },
+                ]}
+                submit="Record decision"
+              />
+            </details>
+          ))}
+          {!visibleBusinesses.length && (
+            <div className="empty-state">
+              <h2>No matching businesses</h2>
+              <p>Try a different search or check another review queue.</p>
+            </div>
+          )}
         </>
       )}
       {tab === "users" &&
@@ -125,9 +209,16 @@ export default async function Admin({
           ?.filter((u) => `${u.full_name} ${u.role}`.toLowerCase().includes(q))
           .map((u) => (
             <details className="panel" key={u.id}>
-              <summary>
-                {u.full_name || u.id} · {u.role} ·{" "}
-                {u.suspended ? "Suspended" : "Active"}
+              <summary className="review-summary">
+                <span>
+                  {u.full_name || u.id}
+                  <small>{u.role.replaceAll("_", " ")}</small>
+                </span>
+                <span
+                  className={`badge status-badge status-badge--${u.suspended ? "suspended" : "verified"}`}
+                >
+                  {u.suspended ? "Suspended" : "Active"}
+                </span>
               </summary>
               <ActionForm
                 kind="moderate"
@@ -154,8 +245,13 @@ export default async function Admin({
           ?.filter((j) => j.title.toLowerCase().includes(q))
           .map((j) => (
             <details className="panel" key={j.id}>
-              <summary>
-                {j.title} · {j.status}
+              <summary className="review-summary">
+                <span>{j.title}</span>
+                <span
+                  className={`badge status-badge status-badge--${j.status}`}
+                >
+                  {j.status}
+                </span>
               </summary>
               <ActionForm
                 kind="moderate"
@@ -184,8 +280,13 @@ export default async function Admin({
             ?.filter((r) => `${r.reason} ${r.status}`.toLowerCase().includes(q))
             .map((r) => (
               <details className="panel" key={r.id}>
-                <summary>
-                  {r.subject_type} · {r.status}
+                <summary className="review-summary">
+                  <span>Reported {r.subject_type}</span>
+                  <span
+                    className={`badge status-badge status-badge--${r.status}`}
+                  >
+                    {r.status}
+                  </span>
                 </summary>
                 <p>{r.reason}</p>
                 <p>Subject ID: {r.subject_id}</p>
@@ -230,16 +331,16 @@ export default async function Admin({
                   ?.filter((l) => JSON.stringify(l).toLowerCase().includes(q))
                   .map((l) => (
                     <tr key={l.id}>
-                      <td>
+                      <td data-label="When">
                         {new Date(l.created_at).toLocaleString("en-PH", {
                           timeZone: "Asia/Manila",
                         })}
                       </td>
-                      <td>{l.action}</td>
-                      <td>
+                      <td data-label="Action">{l.action}</td>
+                      <td data-label="Target">
                         {l.target_type} · {l.target_id}
                       </td>
-                      <td>{l.reason}</td>
+                      <td data-label="Reason">{l.reason}</td>
                     </tr>
                   ))}
               </tbody>

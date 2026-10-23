@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Sprout } from "lucide-react";
+import { Check, Sprout } from "lucide-react";
 import { Header, Footer, PageTitle } from "@/components/site";
 import { AuthForm } from "@/components/forms";
 export function generateStaticParams() {
@@ -111,8 +111,17 @@ export default async function AuthPage({
             Discover meaningful work, meet local businesses, and build your
             future in the community you call home.
           </p>
+          <ul className="auth-benefits">
+            <li>
+              <Check size={16} aria-hidden="true" /> Free to create a profile
+            </li>
+            <li>
+              <Check size={16} aria-hidden="true" /> Made for local connections
+            </li>
+          </ul>
         </section>
         <section className="auth-form">
+          <div className="eyebrow auth-eyebrow">YOUR LOCAL COMMUNITY</div>
           <h2>{title}</h2>
           <p>
             {auth === "register"

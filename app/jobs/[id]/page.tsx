@@ -26,7 +26,7 @@ export default async function JobDetail({
   return (
     <>
       <Header />
-      <main id="main-content" className="page-bg">
+      <main id="main-content" className="page-bg job-detail-page">
         <div className="container">
           <Link href="/jobs" className="back-link">
             ← Back to opportunities
@@ -36,12 +36,20 @@ export default async function JobDetail({
             title={job.title}
             description={`${job.company} · ${job.location}`}
           />
+          <div className="job-title-actions">
+            <a className="button" href="#apply">
+              {demo ? "About applying" : "Apply for this role"}
+            </a>
+            <span>
+              {demo
+                ? "Fictional listing for demonstration"
+                : "Your CV is shared only with this hiring team"}
+            </span>
+          </div>
           <div className="detail-layout">
-            <div>
+            <div className="detail-content">
               <article className="panel">
-                <div
-                  style={{ display: "flex", justifyContent: "space-between" }}
-                >
+                <div className="job-panel-heading">
                   <h2>About this opportunity</h2>
                   <SaveButton id={job.id} initial={job.saved} />
                 </div>
@@ -64,7 +72,7 @@ export default async function JobDetail({
                   <span>{job.category}</span>
                 </div>
               </article>
-              <section className="panel">
+              <section id="apply" className="panel application-panel">
                 <h2>Make your next move</h2>
                 <ApplyForm id={job.id} sample={demo} />
               </section>
@@ -86,28 +94,51 @@ export default async function JobDetail({
                   />
                 </details>
               )}
+              <div className="panel safety-note">
+                <h3>Keep your search safe</h3>
+                <p>
+                  Legitimate employers never ask you to pay to apply. Keep your
+                  personal information private.
+                </p>
+              </div>
             </div>
-            <aside>
-              <div className="panel">
+            <aside aria-label="Job information">
+              <div className="panel job-facts">
                 <h2>At a glance</h2>
-                <h3>Monthly salary</h3>
-                <p>
-                  {job.salary_min
-                    ? `₱${job.salary_min.toLocaleString()} – ₱${job.salary_max?.toLocaleString()}`
-                    : "Not disclosed"}
-                </p>
-                <h3>Work location</h3>
-                <p>
-                  {job.location} · {job.arrangement}
-                </p>
-                <h3>Employment</h3>
-                <p>{job.employment_type}</p>
-                {job.deadline && (
-                  <>
-                    <h3>Apply before</h3>
-                    <p>{job.deadline}</p>
-                  </>
-                )}
+                <dl>
+                  <div>
+                    <dt>Monthly salary</dt>
+                    <dd>
+                      {job.salary_min
+                        ? `₱${job.salary_min.toLocaleString()} – ₱${job.salary_max?.toLocaleString()}`
+                        : "Not disclosed"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Work location</dt>
+                    <dd>
+                      {job.location} · {job.arrangement}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Employment</dt>
+                    <dd>{job.employment_type}</dd>
+                  </div>
+                  {job.deadline && (
+                    <div>
+                      <dt>Apply before</dt>
+                      <dd>
+                        {new Date(
+                          `${job.deadline}T00:00:00`,
+                        ).toLocaleDateString("en-PH", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })}
+                      </dd>
+                    </div>
+                  )}
+                </dl>
                 {job.business_id && (
                   <Link
                     className="text-link"
@@ -117,13 +148,6 @@ export default async function JobDetail({
                     Meet the business ↗
                   </Link>
                 )}
-              </div>
-              <div className="panel">
-                <h3>Keep your search safe</h3>
-                <p>
-                  Legitimate employers never ask you to pay to apply. Keep your
-                  personal information private.
-                </p>
               </div>
             </aside>
           </div>

@@ -5,21 +5,20 @@ import {
   Bookmark,
   BriefcaseBusiness,
   Bell,
-  Store,
   ShieldCheck,
-  LogOut,
   Flag,
 } from "lucide-react";
-import { Header, Footer, PageTitle } from "./site";
-import { logout } from "@/app/actions";
+import { Header, PageTitle } from "./site";
 export function DashboardLayout({
   children,
   role = "jobseeker",
   active = "overview",
+  businessId,
 }: {
   children: React.ReactNode;
   role?: string;
   active?: string;
+  businessId?: string;
 }) {
   const base =
     role === "business_owner"
@@ -30,15 +29,14 @@ export function DashboardLayout({
   const links =
     role === "jobseeker"
       ? [
-          ["overview", "Overview", LayoutDashboard],
-          ["profile", "My profile", UserRound],
+          ["overview", "Dashboard", LayoutDashboard],
           ["applications", "Applications", BriefcaseBusiness],
           ["saved", "Saved jobs", Bookmark],
           ["notifications", "Notifications", Bell],
         ]
       : role === "admin"
         ? [
-            ["overview", "Platform overview", LayoutDashboard],
+            ["overview", "Dashboard", LayoutDashboard],
             ["businesses", "Verification queue", ShieldCheck],
             ["users", "User management", UserRound],
             ["jobs", "Job management", BriefcaseBusiness],
@@ -46,8 +44,7 @@ export function DashboardLayout({
             ["audit", "Audit logs", ShieldCheck],
           ]
         : [
-            ["overview", "Hiring overview", LayoutDashboard],
-            ["profile", "Business profile", Store],
+            ["overview", "Dashboard", LayoutDashboard],
             ["jobs", "Manage jobs", BriefcaseBusiness],
             ["applicants", "Applicants", UserRound],
             ["notifications", "Notifications", Bell],
@@ -55,32 +52,43 @@ export function DashboardLayout({
   return (
     <>
       <Header />
-      <main id="main-content" className="page-bg">
+      <main id="main-content" className="page-bg workspace-page">
         <div className="container dashboard-shell">
-          <aside className="dashboard-nav" aria-label="Dashboard navigation">
+          <nav className="dashboard-nav" aria-label="Workspace navigation">
+            <span className="workspace-nav-label">
+              {role === "admin"
+                ? "Administration"
+                : role === "business_owner"
+                  ? "Business workspace"
+                  : "My workspace"}
+            </span>
             {links.map(([key, label, Icon]) => {
               const I = Icon as typeof LayoutDashboard;
               return (
                 <Link
                   key={String(key)}
-                  href={`${base}?tab=${key}`}
+                  href={`${base}?tab=${key}${businessId ? `&business=${businessId}` : ""}`}
                   className={active === key ? "active" : ""}
+                  aria-current={active === key ? "page" : undefined}
                 >
                   <I size={18} />
                   {String(label)}
                 </Link>
               );
             })}
-            <form action={logout}>
-              <button>
-                <LogOut size={18} /> Log out
-              </button>
-            </form>
-          </aside>
-          <div>{children}</div>
+          </nav>
+          <div className="dashboard-content">{children}</div>
         </div>
       </main>
-      <Footer />
+      <footer className="workspace-footer">
+        <div className="container">
+          <span>CANDELINK · Your local professional community</span>
+          <div>
+            <Link href="/privacy">Privacy</Link>
+            <Link href="/terms">Terms</Link>
+          </div>
+        </div>
+      </footer>
     </>
   );
 }

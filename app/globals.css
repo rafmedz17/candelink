@@ -134,15 +134,79 @@ img {
   font-weight: 600;
   white-space: nowrap;
 }
-.employer-link {
-  display: flex;
-  gap: 6px;
-  align-items: center;
+.account-menu {
+  position: relative;
 }
-.nav-separator {
-  height: 19px;
-  width: 1px;
-  background: var(--line);
+.account-menu summary {
+  list-style: none;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  color: var(--green);
+  border: 1px solid #cbd8ce;
+  border-radius: 50%;
+  background: #f4f8f3;
+  overflow: hidden;
+}
+.account-avatar {
+  width: 100%;
+  height: 100%;
+  display: block;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.account-menu summary::-webkit-details-marker {
+  display: none;
+}
+.account-menu summary:hover {
+  background: #e7f2e8;
+}
+.account-menu > div {
+  position: absolute;
+  right: 0;
+  top: 48px;
+  width: 190px;
+  padding: 8px;
+  z-index: 45;
+  background: white;
+  border: 1px solid #e0e7dc;
+  border-radius: 8px;
+  box-shadow: 0 12px 30px #243f2515;
+}
+.account-menu-label {
+  display: block;
+  padding: 7px 10px 8px;
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+.account-menu a,
+.account-menu button,
+.mobile-logout {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  color: var(--ink);
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+.account-menu a:hover,
+.account-menu button:hover,
+.mobile-logout:hover {
+  background: #eff5eb;
+  color: var(--green);
 }
 .button {
   background: var(--green);
@@ -176,6 +240,13 @@ img {
 }
 .button.outline:hover {
   background: #eef6ef;
+}
+.button.outline.danger {
+  color: #a13e35;
+  border-color: #dfb3ae;
+}
+.button.outline.danger:hover {
+  background: #fff2f0;
 }
 .button.light {
   color: #206547;
@@ -1354,9 +1425,6 @@ td .button {
   .nav-actions {
     gap: 16px;
   }
-  .employer-link {
-    display: none;
-  }
   .hero-grid {
     gap: 32px;
     min-height: 580px;
@@ -1415,9 +1483,6 @@ td .button {
   }
   .nav-actions {
     gap: 20px;
-  }
-  .nav-separator {
-    display: none;
   }
   .hero-grid {
     gap: 30px;
@@ -1978,6 +2043,108 @@ td .button {
 .job-card-bottom strong {
   font-size: 12px;
 }
+.social-profile {
+  padding: 0;
+  overflow: hidden;
+}
+.social-profile-header {
+  height: 112px;
+  background: linear-gradient(115deg, #146e52, #5ba780);
+}
+.social-profile-body {
+  padding: 0 28px 28px;
+}
+.social-avatar {
+  width: 112px;
+  height: 112px;
+  margin-top: -56px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 4px solid white;
+  border-radius: 50%;
+  background: #dcebdd;
+  color: var(--green);
+  font-size: 38px;
+  font-weight: 650;
+}
+.social-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.social-profile-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: flex-start;
+  margin-top: 18px;
+}
+.social-profile-heading h2 {
+  margin: 0;
+}
+.social-profile-heading p {
+  margin-top: 7px;
+}
+.social-profile-heading span,
+.public-profile-heading span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: #6e7c70;
+  font-size: 12px;
+  margin-top: 10px;
+}
+.social-profile-copy {
+  margin-top: 28px;
+}
+.social-profile-copy h2,
+.social-profile-copy h3 {
+  margin: 0 0 10px;
+}
+.profile-visibility {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+.profile-visibility h2 {
+  margin-bottom: 8px;
+}
+.profile-visibility-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 14px;
+}
+.profile-visibility .form-message {
+  flex-basis: 100%;
+  margin: 0;
+}
+.profile-completion h2 {
+  margin-bottom: 8px;
+}
+.public-profile-page {
+  max-width: 850px;
+  padding-bottom: 60px;
+}
+.public-profile-page .back-link {
+  margin: 30px 0 18px;
+}
+.public-profile-heading {
+  margin-top: 18px;
+}
+.public-profile-heading h1 {
+  font-size: 32px;
+  letter-spacing: -1px;
+}
+.public-profile-heading p {
+  margin-top: 7px;
+}
+.profile-rich-text {
+  white-space: pre-line;
+}
 .mobile-menu {
   display: none;
   position: relative;
@@ -2011,11 +2178,25 @@ td .button {
   background: #eff5eb;
   border-radius: 5px;
 }
+.mobile-menu form {
+  margin: 0;
+}
+.mobile-menu .mobile-logout {
+  padding: 11px;
+  font-size: 12px;
+}
 @media (max-width: 850px) {
   .mobile-menu {
     display: block;
   }
   .nav-actions .login-link {
     display: none;
+  }
+  .profile-visibility {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .profile-visibility-actions {
+    justify-content: flex-start;
   }
 }

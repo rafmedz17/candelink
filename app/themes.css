@@ -53,6 +53,7 @@
     .float-card,
     .hero-search,
     .mobile-menu > div,
+    .account-menu > div,
     .empty-state
   ) {
   background: var(--dark-surface);
@@ -76,10 +77,28 @@
 [data-theme="dark"] .button:hover {
   background: #23885e;
 }
+[data-theme="dark"] .account-menu summary {
+  color: #8de1b6;
+  border-color: #376548;
+  background: #1b3024;
+}
+[data-theme="dark"] .account-menu summary:hover {
+  background: #254734;
+}
+[data-theme="dark"] .account-menu :is(a, button) {
+  color: var(--ink);
+}
 [data-theme="dark"] .button.outline {
   background: var(--dark-surface);
   border-color: #465e4e;
   color: var(--ink);
+}
+[data-theme="dark"] .button.outline.danger {
+  color: #f0aaa1;
+  border-color: #704641;
+}
+[data-theme="dark"] .button.outline.danger:hover {
+  background: #3c2725;
 }
 [data-theme="dark"]
   :is(

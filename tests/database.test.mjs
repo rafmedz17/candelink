@@ -115,6 +115,39 @@ test("profile owner can edit headline but cannot self-promote or suspend others"
       1,
     );
   }));
+test("public profile is opt-in and exposes only the safe profile projection", async () => {
+  await as("anon", async () => {
+    const hidden = await db.query(
+      "select public.get_public_profile($1) as profile",
+      [ids.seeker],
+    );
+    assert.equal(hidden.rows[0].profile, null);
+  });
+  await as("seeker", () =>
+    db.query(
+      "update public.profiles set public_profile=true,cv_path=$2 where id=$1",
+      [ids.seeker, `${ids.seeker}/private-resume.pdf`],
+    ),
+  );
+  await as("other", async () => {
+    const changed = await db.query(
+      "update public.profiles set public_profile=true where id=$1 returning id",
+      [ids.seeker],
+    );
+    assert.equal(changed.rows.length, 0);
+  });
+  await as("anon", async () => {
+    const result = await db.query(
+      "select public.get_public_profile($1) as profile",
+      [ids.seeker],
+    );
+    const profile = result.rows[0].profile;
+    assert.equal(profile.id, ids.seeker);
+    assert.equal(profile.full_name, "seeker");
+    assert.equal("cv_path" in profile, false);
+    assert.equal("email" in profile, false);
+  });
+});
 test("unverified businesses cannot publish", async () =>
   as("owner", () =>
     assert.rejects(

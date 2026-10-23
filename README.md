@@ -16,11 +16,13 @@ Open http://localhost:3000. Without Supabase configuration, public pages display
 
 Use the sun/moon button in the header to switch themes. Appearance follows your device preference until you make a selection, which is saved locally and shared across tabs. The theme is applied before the first paint to avoid a light flash on dark-mode visits.
 
+The interface starts with single-column phone layouts and expands for tablets and desktops. Job filters collapse on phones, form controls use readable text and large tap targets, and workspace navigation scrolls independently. Registration includes account-type cards and a password visibility control. Employer cards retain the selected business while navigating; applicant details expand on demand, and final application statuses are read-only.
+
 ## Supabase setup
 
 1. Create a project and copy its URL and **publishable** API key into `.env.local`. Set `NEXT_PUBLIC_SITE_URL` to the actual application origin. No service-role key is used by the application.
 2. Install the Supabase CLI and inspect `supabase --help`. With Docker, start a fresh local development stack using `supabase start`, then apply the baseline with `supabase db reset` (this resets local data). For hosted projects, link with `supabase link --project-ref YOUR_REF`, review, and apply using `supabase db push`. The baseline SQL can alternatively be applied once through the trusted SQL editor on a fresh project.
-3. The migration creates tables, indexes, grants, RLS, triggers, RPCs, and Storage buckets: private `cvs` (PDF, 5 MB) and public `avatars` (JPEG/PNG, 5 MB). Logos and avatars are intentionally public. CVs use immutable owner-prefixed UUID paths and 60-second signed URLs.
+3. The migrations create tables, indexes, grants, RLS, triggers, RPCs, and Storage buckets: private `cvs` (PDF, 5 MB) and public `avatars` (JPEG/PNG, 5 MB). Logos and avatars are intentionally public. CVs use immutable owner-prefixed UUID paths and 60-second signed URLs. Apply every migration, including `20261022191840_public_profiles.sql`, after the baseline.
 4. Configure Auth Site URL and allowed redirects for `http://localhost:3000/auth/callback`, `http://localhost:3000/auth/callback?next=/reset-password`, and their production equivalents. Keep email confirmations enabled. Verify confirmation and recovery email templates with the code-exchange callback flow.
 5. Configure production SMTP. Without SMTP, provider development email limits apply. Hiring updates use persistent in-app notifications; transactional hiring email is not integrated.
 6. Configure Auth rate limits, CAPTCHA, password protections, and email quotas. SQL provides persistent daily limits for applications (30), business creation (3), job inserts (20), verification requests (5), and reports (10) per authenticated account.
@@ -75,6 +77,8 @@ Database tests apply the real migration to embedded PostgreSQL (PGlite), supplyi
 
 Browser tests run in **unconfigured sample mode**; do not point them at a live database. They cover search, filters, details, honest bookmark/auth feedback, empty states, admin setup privacy, and viewport overflow. Run `npm run build` first. Tests start the production build at `http://localhost:3100` and leave the normal development server on port 3000 alone. `npm run format` formats application source.
 
+On Windows, an installed Microsoft Edge can run the browser checks by setting `PLAYWRIGHT_CHANNEL=msedge`; otherwise install the Playwright Chromium browser. The responsive review covers 320px phones through desktop widths. Authenticated workspace journeys still require the staging accounts described below.
+
 Before deployment, verify these against a staging project:
 
 - Register and confirm a seeker, two owners, and an admin; test login, logout, recovery, and expired links.
@@ -100,7 +104,7 @@ Before deployment, verify these against a staging project:
 ## Known limitations
 
 - No hosted Supabase project, GitHub remote, or Vercel deployment has been configured by this implementation. Live Auth, email, PostgREST joins, and Storage require the staging checks above. Docker was unavailable, so the full local Supabase stack was not exercised.
-- Education, experience, and skills are editable text in v1. Structured entries, public professional profiles, networking connections, and a social feed remain future work. Recommended jobs are recent listings, not personalized rankings.
+- Education, experience, and skills are editable text in v1. Jobseekers can opt in to a public, link-shareable professional profile; their email, CV, applications, saved jobs, and notifications remain private. Structured entries, networking connections, and a social feed remain future work. Recommended jobs are recent listings, not personalized rankings.
 - Membership supports multiple users in the schema; invitations and membership administration require a trusted operator. Dashboard navigation defaults to the first owned business; use its business selector to switch.
 - No automated identity-document verification, malware scanning, hiring email integration, realtime subscriptions, old-CV cleanup, or automated account deletion. MIME/signature checks do not prove a document is harmless.
 - Admin/business tables use bounded provider results rather than large-dataset pagination. Public job discovery uses database-side filters, sorting, and eight-record pagination. Search uses case-insensitive keyword matching; a full-text index is included for future ranking.

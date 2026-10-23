@@ -189,6 +189,19 @@ export default async function Home() {
               <JobCard key={job.id} job={job} demo={demo} />
             ))}
           </div>
+          {jobs.length === 0 && (
+            <div className="empty-state home-empty-state">
+              <BriefcaseBusiness size={28} aria-hidden="true" />
+              <h3>Local opportunities are on the way</h3>
+              <p>
+                Build your profile now so you are ready when a local team starts
+                hiring.
+              </p>
+              <Link className="button" href="/register">
+                Create your profile
+              </Link>
+            </div>
+          )}
           {demo && (
             <p className="sample-note">
               A glimpse of what’s possible. Listings shown are sample
@@ -253,6 +266,19 @@ export default async function Home() {
                   </Link>
                 ))}
             </div>
+            {businesses.length === 0 && (
+              <div className="empty-state home-empty-state">
+                <Store size={28} aria-hidden="true" />
+                <h3>Make your business part of the community</h3>
+                <p>Introduce your team and connect with local talent.</p>
+                <Link
+                  className="button outline"
+                  href="/register?role=business_owner"
+                >
+                  Create a business profile
+                </Link>
+              </div>
+            )}
           </div>
         </section>
         <section className="section container how-section" id="how-it-works">

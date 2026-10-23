@@ -5,7 +5,11 @@ export default defineConfig({
   expect: { timeout: 15000 },
   timeout: 60000,
   workers: 1,
-  use: { baseURL: "http://localhost:3100", trace: "retain-on-failure" },
+  use: {
+    baseURL: "http://localhost:3100",
+    trace: "retain-on-failure",
+    channel: process.env.PLAYWRIGHT_CHANNEL,
+  },
   webServer: {
     command: "npm run start -- --port 3100",
     url: "http://localhost:3100",

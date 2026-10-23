@@ -10,11 +10,17 @@ import {
   Calculator,
   Headphones,
   Menu,
+  LayoutDashboard,
+  LogOut,
+  Settings,
+  UserRound,
 } from "lucide-react";
 import type { Job } from "@/lib/sample";
 import { SaveButton } from "./save-button";
 import { supabase } from "@/lib/supabase/server";
 import { ThemeToggle } from "./theme-toggle";
+import { logout } from "@/app/actions";
+import { NavigationMenu } from "./navigation-menu";
 export function Logo() {
   return (
     <Link href="/" className="brand" aria-label="Candelink home">
@@ -29,6 +35,31 @@ export function Logo() {
 export async function Header() {
   const db = await supabase();
   const user = db ? (await db.auth.getUser()).data.user : null;
+  const { data: profile } = user
+    ? await db!
+        .from("profiles")
+        .select("role,avatar_path")
+        .eq("id", user.id)
+        .maybeSingle()
+    : { data: null };
+  const dashboardHref =
+    profile?.role === "business_owner"
+      ? "/business/dashboard"
+      : profile?.role === "admin"
+        ? "/admin"
+        : "/dashboard";
+  const profileHref =
+    profile?.role === "business_owner"
+      ? "/business/dashboard?tab=profile"
+      : profile?.role === "admin"
+        ? "/admin?tab=profile"
+        : "/dashboard?tab=profile";
+  const profileLabel =
+    profile?.role === "business_owner" ? "Business profile" : "My profile";
+  const avatarUrl = profile?.avatar_path
+    ? db!.storage.from("avatars").getPublicUrl(profile.avatar_path).data
+        .publicUrl
+    : null;
   return (
     <header className="site-header">
       <div className="container nav">
@@ -40,30 +71,60 @@ export async function Header() {
         </nav>
         <div className="nav-actions">
           <ThemeToggle />
-          <details className="mobile-menu">
-            <summary aria-label="Open navigation">
-              <Menu size={22} />
-            </summary>
-            <div>
+          {!user && (
+            <NavigationMenu
+              className="mobile-menu"
+              label="Open navigation"
+              trigger={<Menu size={22} />}
+            >
               <Link href="/jobs">Find a job</Link>
               <Link href="/businesses">Local businesses</Link>
               <Link href="/#how-it-works">How it works</Link>
-              <Link href={user ? "/dashboard" : "/login"}>
-                {user ? "My dashboard" : "Log in"}
+              <Link href="/login">Log in</Link>
+              <Link href="/register">Sign up</Link>
+            </NavigationMenu>
+          )}
+          {user ? (
+            <NavigationMenu
+              className="account-menu"
+              label="Open account menu"
+              trigger={
+                avatarUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- The authenticated user's avatar is served from their configured public Storage bucket.
+                  <img className="account-avatar" src={avatarUrl} alt="" />
+                ) : (
+                  <UserRound size={18} aria-hidden="true" />
+                )
+              }
+            >
+              <span className="account-menu-label">Your account</span>
+              <Link href={dashboardHref}>
+                <LayoutDashboard size={15} aria-hidden="true" /> Dashboard
               </Link>
-              <Link href="/business/dashboard">For employers</Link>
-            </div>
-          </details>
-          <Link className="employer-link" href="/business/dashboard">
-            For employers <ArrowUpRight size={14} />
-          </Link>
-          <span className="nav-separator" />
-          <Link className="login-link" href={user ? "/dashboard" : "/login"}>
-            {user ? "My dashboard" : "Log in"}
-          </Link>
-          <Link className="button small" href="/register">
-            Get started <ArrowUpRight size={15} />
-          </Link>
+              <Link href={profileHref}>
+                <Settings size={15} aria-hidden="true" /> {profileLabel}
+              </Link>
+              <div className="account-mobile-links">
+                <Link href="/jobs">Find a job</Link>
+                <Link href="/businesses">Local businesses</Link>
+                <Link href="/#how-it-works">How it works</Link>
+              </div>
+              <form action={logout}>
+                <button type="submit">
+                  <LogOut size={15} aria-hidden="true" /> Log out
+                </button>
+              </form>
+            </NavigationMenu>
+          ) : (
+            <>
+              <Link className="login-link" href="/login">
+                Log in
+              </Link>
+              <Link className="button small" href="/register">
+                Sign up <ArrowUpRight size={15} aria-hidden="true" />
+              </Link>
+            </>
+          )}
         </div>
       </div>
     </header>
@@ -154,7 +215,7 @@ export function JobCard({ job, demo = false }: { job: Job; demo?: boolean }) {
       <div className="tags">
         <span>{job.employment_type}</span>
         <span>{job.arrangement}</span>
-        {n === 0 && <span className="green-tag">Fresh grads welcome</span>}
+        <span>{job.category}</span>
       </div>
       <div className="job-card-bottom">
         <strong>

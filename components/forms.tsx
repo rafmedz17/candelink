@@ -4,7 +4,13 @@ import Image from "next/image";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
-import { authAction, mutate, uploadFile, cvLink } from "@/app/actions";
+import {
+  authAction,
+  cvLink,
+  deleteFile,
+  mutate,
+  uploadFile,
+} from "@/app/actions";
 import { Button } from "./ui/button";
 type Field = {
   name: string;
@@ -17,7 +23,10 @@ type Field = {
 };
 export function PrivateCvUpload({ hasCv }: { hasCv: boolean }) {
   const router = useRouter();
-  const [message, setMessage] = useState("");
+  const [result, setResult] = useState<{
+    ok: boolean;
+    message: string;
+  } | null>(null);
   const [pending, setPending] = useState(false);
   return (
     <section className="panel">
@@ -42,19 +51,52 @@ export function PrivateCvUpload({ hasCv }: { hasCv: boolean }) {
               const data = new FormData();
               data.set("file", file);
               const r = await uploadFile(data);
-              setMessage(r.message);
+              setResult(r);
               if (r.ok) router.refresh();
             } catch {
-              setMessage("Upload failed. Please check your connection.");
+              setResult({
+                ok: false,
+                message: "Upload failed. Please check your connection.",
+              });
             } finally {
               setPending(false);
             }
           }}
         />
       </label>
-      {message && (
-        <p className="form-message" role="status">
-          {message}
+      {hasCv && (
+        <Button
+          type="button"
+          variant="outline"
+          className="danger"
+          style={{ marginTop: 14 }}
+          disabled={pending}
+          onClick={async () => {
+            if (!window.confirm("Delete this CV from your profile?")) return;
+            setPending(true);
+            try {
+              const r = await deleteFile("cv");
+              setResult(r);
+              if (r.ok) router.refresh();
+            } catch {
+              setResult({
+                ok: false,
+                message: "CV removal failed. Please check your connection.",
+              });
+            } finally {
+              setPending(false);
+            }
+          }}
+        >
+          Delete CV
+        </Button>
+      )}
+      {result && (
+        <p
+          className={`form-message ${result.ok ? "" : "error"}`}
+          role={result.ok ? "status" : "alert"}
+        >
+          {result.message}
         </p>
       )}
     </section>
@@ -68,7 +110,10 @@ export function PhotoUpload({
   businessId?: string;
 }) {
   const router = useRouter();
-  const [message, setMessage] = useState("");
+  const [result, setResult] = useState<{
+    ok: boolean;
+    message: string;
+  } | null>(null);
   const [pending, setPending] = useState(false);
   return (
     <div className="panel">
@@ -80,11 +125,16 @@ export function PhotoUpload({
           width={80}
           height={80}
           unoptimized
-          style={{ borderRadius: 12, marginBottom: 20 }}
+          style={{
+            borderRadius: businessId ? 12 : "50%",
+            marginBottom: 20,
+            objectFit: "cover",
+          }}
         />
       )}
-      <label className="form-stack">
-        JPEG or PNG · up to 5 MB
+      <label className="upload-field">
+        <span>Choose a JPEG or PNG photo</span>
+        <small>Up to 5 MB</small>
         <input
           type="file"
           accept="image/jpeg,image/png"
@@ -99,24 +149,159 @@ export function PhotoUpload({
               data.set("bucket", "avatars");
               if (businessId) data.set("business_id", businessId);
               const r = await uploadFile(data);
-              setMessage(r.message);
+              setResult(r);
               if (r.ok) router.refresh();
             } catch {
-              setMessage(
-                "The upload could not be completed. Check your connection.",
-              );
+              setResult({
+                ok: false,
+                message:
+                  "The upload could not be completed. Check your connection.",
+              });
             } finally {
               setPending(false);
             }
           }}
         />
       </label>
-      {message && (
-        <p className="form-message" role="status">
-          {message}
+      {path && (
+        <Button
+          type="button"
+          variant="outline"
+          className="danger"
+          style={{ marginTop: 14 }}
+          disabled={pending}
+          onClick={async () => {
+            if (
+              !window.confirm(
+                `Delete this ${businessId ? "business logo" : "profile photo"}?`,
+              )
+            )
+              return;
+            setPending(true);
+            try {
+              const r = await deleteFile("avatar", businessId);
+              setResult(r);
+              if (r.ok) router.refresh();
+            } catch {
+              setResult({
+                ok: false,
+                message: "Photo removal failed. Please check your connection.",
+              });
+            } finally {
+              setPending(false);
+            }
+          }}
+        >
+          Delete {businessId ? "logo" : "photo"}
+        </Button>
+      )}
+      {result && (
+        <p
+          className={`form-message ${result.ok ? "" : "error"}`}
+          role={result.ok ? "status" : "alert"}
+        >
+          {result.message}
         </p>
       )}
     </div>
+  );
+}
+export function ProfileVisibility({
+  profileId,
+  isPublic,
+}: {
+  profileId: string;
+  isPublic: boolean;
+}) {
+  const router = useRouter();
+  const [result, setResult] = useState<{
+    ok: boolean;
+    message: string;
+  } | null>(null);
+  const [pending, setPending] = useState(false);
+  return (
+    <section className="profile-visibility panel">
+      <div>
+        <h2>
+          {isPublic ? "Your profile is visible" : "Keep your profile private"}
+        </h2>
+        <p>
+          {isPublic
+            ? "Anyone with your profile link can view your professional information."
+            : "Enable visibility when you are ready to share your professional information with others."}
+        </p>
+      </div>
+      <div className="profile-visibility-actions">
+        {isPublic && (
+          <Link
+            className="text-link"
+            href={`/profiles/${profileId}`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            View public profile ↗
+          </Link>
+        )}
+        {isPublic && (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={async () => {
+              try {
+                await navigator.clipboard.writeText(
+                  `${window.location.origin}/profiles/${profileId}`,
+                );
+                setResult({ ok: true, message: "Public profile link copied." });
+              } catch {
+                setResult({
+                  ok: false,
+                  message:
+                    "Copy the profile address from your browser instead.",
+                });
+              }
+            }}
+          >
+            Copy link
+          </Button>
+        )}
+        <Button
+          type="button"
+          variant={isPublic ? "outline" : "default"}
+          disabled={pending}
+          onClick={async () => {
+            setPending(true);
+            try {
+              const response = await mutate("profile-visibility", {
+                public_profile: !isPublic,
+              });
+              setResult(response);
+              if (response.ok) router.refresh();
+            } catch {
+              setResult({
+                ok: false,
+                message: "Visibility could not be updated. Please try again.",
+              });
+            } finally {
+              setPending(false);
+            }
+          }}
+        >
+          {pending
+            ? "Saving…"
+            : isPublic
+              ? "Make profile private"
+              : "Make profile public"}
+        </Button>
+      </div>
+      {result && (
+        <p
+          className={`form-message ${result.ok ? "" : "error"}`}
+          role={result.ok ? "status" : "alert"}
+        >
+          {result.message}
+        </p>
+      )}
+    </section>
   );
 }
 export function ActionForm({
@@ -141,11 +326,19 @@ export function ActionForm({
   );
   return (
     <form
-      className="form-stack"
+      className={`form-stack action-form action-form-${kind}`}
       onSubmit={handleSubmit(async (values) => {
-        const r = await mutate(kind, { ...hidden, ...values });
-        setResult(r);
-        if (r.ok) router.refresh();
+        try {
+          const r = await mutate(kind, { ...hidden, ...values });
+          setResult(r);
+          if (r.ok) router.refresh();
+        } catch {
+          setResult({
+            ok: false,
+            message:
+              "We couldn't save your changes. Check your connection and try again.",
+          });
+        }
       })}
     >
       {fields.map((f) => (
@@ -181,7 +374,10 @@ export function ActionForm({
         </label>
       ))}
       {result && (
-        <p role="status" className={`form-message ${result.ok ? "" : "error"}`}>
+        <p
+          role={result.ok ? "status" : "alert"}
+          className={`form-message ${result.ok ? "" : "error"}`}
+        >
           {result.message}
         </p>
       )}
@@ -199,6 +395,7 @@ export function AuthForm({
   role?: string;
 }) {
   const router = useRouter();
+  const [showPassword, setShowPassword] = useState(false);
   const {
     register,
     handleSubmit,
@@ -209,11 +406,19 @@ export function AuthForm({
   );
   return (
     <form
-      className="form-stack"
+      className="form-stack auth-stack"
       onSubmit={handleSubmit(async (values) => {
-        const r = await authAction(mode, values);
-        setResult(r);
-        if (r.url) router.push(r.url);
+        try {
+          const r = await authAction(mode, values);
+          setResult(r);
+          if (r.url) router.push(r.url);
+        } catch {
+          setResult({
+            ok: false,
+            message:
+              "We couldn't complete that request. Check your connection and try again.",
+          });
+        }
       })}
     >
       {mode === "register" && (
@@ -226,15 +431,39 @@ export function AuthForm({
               placeholder="Your full name"
             />
           </label>
-          <label>
-            I’m here to
-            <select {...register("role")} defaultValue={role}>
-              <option value="jobseeker">Find work and build my career</option>
-              <option value="business_owner">
-                Hire talent for my business
-              </option>
-            </select>
-          </label>
+          <fieldset className="role-chooser">
+            <legend>I’m here to</legend>
+            <div className="role-choices">
+              <label className="role-card">
+                <input
+                  type="radio"
+                  value="jobseeker"
+                  {...register("role", { required: true })}
+                  defaultChecked={role !== "business_owner"}
+                />
+                <span className="role-card-copy">
+                  <strong>Find work</strong>
+                  <small>
+                    Build your profile and discover local opportunities.
+                  </small>
+                </span>
+              </label>
+              <label className="role-card">
+                <input
+                  type="radio"
+                  value="business_owner"
+                  {...register("role", { required: true })}
+                  defaultChecked={role === "business_owner"}
+                />
+                <span className="role-card-copy">
+                  <strong>Hire locally</strong>
+                  <small>
+                    Create a business profile and meet local talent.
+                  </small>
+                </span>
+              </label>
+            </div>
+          </fieldset>
         </>
       )}
       {mode !== "reset-password" && (
@@ -249,25 +478,45 @@ export function AuthForm({
         </label>
       )}
       {mode !== "forgot-password" && (
-        <label>
-          {mode === "reset-password" ? "New password" : "Password"}
-          <input
-            type="password"
-            autoComplete={
-              mode === "login" ? "current-password" : "new-password"
-            }
-            {...register("password", {
-              required: true,
-              minLength: mode === "login" ? 1 : 10,
-            })}
-            minLength={mode === "login" ? 1 : 10}
-            placeholder={
-              mode === "login"
-                ? "Enter your password"
-                : "At least 10 characters"
-            }
-          />
-        </label>
+        <div className="auth-field password-field">
+          <label className="password-label" htmlFor="auth-password">
+            {mode === "reset-password" ? "New password" : "Password"}
+          </label>
+          <div className="password-control">
+            <input
+              id="auth-password"
+              type={showPassword ? "text" : "password"}
+              autoComplete={
+                mode === "login" ? "current-password" : "new-password"
+              }
+              {...register("password", {
+                required: true,
+                minLength: mode === "login" ? 1 : 10,
+              })}
+              minLength={mode === "login" ? 1 : 10}
+              placeholder={
+                mode === "login"
+                  ? "Enter your password"
+                  : "At least 10 characters"
+              }
+            />
+            <button
+              type="button"
+              className="password-toggle"
+              aria-controls="auth-password"
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              aria-pressed={showPassword}
+              onClick={() => setShowPassword((visible) => !visible)}
+            >
+              {showPassword ? "Hide" : "Show"}
+            </button>
+          </div>
+          {mode !== "login" && (
+            <small className="field-help">
+              Use at least 10 characters to protect your account.
+            </small>
+          )}
+        </div>
       )}
       {mode === "register" && (
         <label className="check-label">
@@ -281,7 +530,7 @@ export function AuthForm({
       {result && (
         <div
           className={`form-message ${result.ok ? "" : "error"}`}
-          role="status"
+          role={result.ok ? "status" : "alert"}
         >
           {result.message}
         </div>
@@ -300,11 +549,15 @@ export function AuthForm({
   );
 }
 export function ApplyForm({ id, sample }: { id: string; sample: boolean }) {
-  const [path, setPath] = useState(""),
-    [message, setMessage] = useState("");
+  const [path, setPath] = useState("");
+  const [fileName, setFileName] = useState("");
+  const [result, setResult] = useState<{
+    ok: boolean;
+    message: string;
+  } | null>(null);
   const [pending, setPending] = useState(false);
   return (
-    <div className="form-stack">
+    <div className="form-stack application-form">
       {sample ? (
         <p className="form-message">
           This is a sample opportunity. Applications open when real businesses
@@ -312,8 +565,9 @@ export function ApplyForm({ id, sample }: { id: string; sample: boolean }) {
         </p>
       ) : (
         <>
-          <label>
-            Upload your CV · PDF, up to 5 MB
+          <label className="upload-field">
+            <span>Upload your CV</span>
+            <small>PDF only · up to 5 MB</small>
             <input
               type="file"
               accept="application/pdf"
@@ -322,18 +576,41 @@ export function ApplyForm({ id, sample }: { id: string; sample: boolean }) {
                 const file = e.target.files?.[0];
                 if (!file) return;
                 setPending(true);
-                const form = new FormData();
-                form.set("file", file);
-                const r = await uploadFile(form);
-                if (r.ok) setPath(r.url!);
-                setMessage(r.message);
-                setPending(false);
+                setPath("");
+                setFileName(file.name);
+                setResult(null);
+                try {
+                  const form = new FormData();
+                  form.set("file", file);
+                  const r = await uploadFile(form);
+                  if (r.ok) setPath(r.url!);
+                  else setFileName("");
+                  setResult(r);
+                } catch {
+                  setFileName("");
+                  setResult({
+                    ok: false,
+                    message:
+                      "Upload failed. Check your connection and try again.",
+                  });
+                } finally {
+                  setPending(false);
+                }
               }}
             />
           </label>
-          {message && (
-            <p className="form-message" role="status">
-              {message}
+          {fileName && (
+            <div className="upload-status" role="status">
+              <strong>{path ? "CV ready" : "Uploading CV"}</strong>
+              <span>{fileName}</span>
+            </div>
+          )}
+          {result && (
+            <p
+              className={`form-message ${result.ok ? "" : "error"}`}
+              role={result.ok ? "status" : "alert"}
+            >
+              {result.message}
             </p>
           )}
           {path && (
@@ -370,11 +647,15 @@ export function QuickAction({
   confirm?: boolean;
 }) {
   const router = useRouter();
-  const [message, setMessage] = useState("");
+  const [result, setResult] = useState<{
+    ok: boolean;
+    message: string;
+  } | null>(null);
   const [pending, setPending] = useState(false);
   return (
     <div>
       <Button
+        type="button"
         variant="outline"
         disabled={pending}
         onClick={async () => {
@@ -386,33 +667,55 @@ export function QuickAction({
           )
             return;
           setPending(true);
-          const r = await mutate(kind, values);
-          setMessage(r.message);
-          setPending(false);
-          if (r.ok) router.refresh();
+          try {
+            const r = await mutate(kind, values);
+            setResult(r);
+            if (r.ok) router.refresh();
+          } catch {
+            setResult({
+              ok: false,
+              message: "We couldn't complete that action. Please try again.",
+            });
+          } finally {
+            setPending(false);
+          }
         }}
       >
         {pending ? "Working…" : label}
       </Button>
-      {message && (
-        <p className="form-message" role="status">
-          {message}
+      {result && (
+        <p
+          className={`form-message ${result.ok ? "" : "error"}`}
+          role={result.ok ? "status" : "alert"}
+        >
+          {result.message}
         </p>
       )}
     </div>
   );
 }
 export function CvButton({ id }: { id: string }) {
-  const [link, setLink] = useState(""),
-    [message, setMessage] = useState("");
+  const [link, setLink] = useState("");
+  const [result, setResult] = useState<{
+    ok: boolean;
+    message: string;
+  } | null>(null);
   return (
     <div>
       <Button
+        type="button"
         variant="outline"
         onClick={async () => {
-          const r = await cvLink(id);
-          setMessage(r.message);
-          if (r.url) setLink(r.url);
+          try {
+            const r = await cvLink(id);
+            setResult(r);
+            if (r.url) setLink(r.url);
+          } catch {
+            setResult({
+              ok: false,
+              message: "The CV link could not be created. Please try again.",
+            });
+          }
         }}
       >
         Access CV
@@ -423,7 +726,14 @@ export function CvButton({ id }: { id: string }) {
           Open private PDF
         </a>
       )}
-      {message && <p role="status">{message}</p>}
+      {result && (
+        <p
+          className={`form-message ${result.ok ? "" : "error"}`}
+          role={result.ok ? "status" : "alert"}
+        >
+          {result.message}
+        </p>
+      )}
     </div>
   );
 }

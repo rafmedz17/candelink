@@ -160,6 +160,16 @@ async function runMutation(
     const v = profileSchema.safeParse(values);
     if (!v.success) return { ok: false, message: v.error.issues[0].message };
     ({ error } = await db.from("profiles").update(v.data).eq("id", user.id));
+  } else if (kind === "profile-visibility") {
+    if (account.role !== "jobseeker")
+      return { ok: false, message: "Only jobseeker profiles can be public." };
+    const v = z.boolean().safeParse(values.public_profile);
+    if (!v.success)
+      return { ok: false, message: "Invalid profile visibility setting." };
+    ({ error } = await db
+      .from("profiles")
+      .update({ public_profile: v.data })
+      .eq("id", user.id));
   } else if (kind === "business") {
     if (account.role !== "business_owner")
       return { ok: false, message: "A business owner account is required." };
@@ -372,18 +382,117 @@ export async function uploadFile(form: FormData): Promise<Result> {
       };
     revalidatePath("/", "layout");
   } else {
-    const { error: saveError } = await db
-      .from("profiles")
-      .update({ cv_path: path })
-      .eq("id", user.id);
-    if (saveError)
-      return {
-        ok: false,
-        message: "The CV uploaded but could not be attached to your profile.",
-      };
-    revalidatePath("/dashboard");
+    revalidatePath("/jobs");
   }
   return { ok: true, message: "File uploaded securely.", url: path };
+}
+export async function deleteFile(
+  kind: "avatar" | "cv",
+  businessId?: string,
+): Promise<Result> {
+  const db = await supabase();
+  if (!db) return { ok: false, message: "Storage is not configured." };
+  const {
+    data: { user },
+  } = await db.auth.getUser();
+  if (!user) return { ok: false, message: "Please log in first." };
+
+  if (kind === "avatar" && businessId) {
+    const parsed = z.uuid().safeParse(businessId);
+    if (!parsed.success) return { ok: false, message: "Invalid business." };
+    const { data: member } = await db
+      .from("business_members")
+      .select("business_id")
+      .eq("business_id", parsed.data)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (!member)
+      return { ok: false, message: "Business membership is required." };
+    const { data: business, error: findError } = await db
+      .from("businesses")
+      .select("logo_path")
+      .eq("id", parsed.data)
+      .maybeSingle();
+    if (findError || !business?.logo_path)
+      return { ok: false, message: "No business logo was found." };
+    if (!business.logo_path.startsWith(`${user.id}/`))
+      return { ok: false, message: "This logo cannot be removed." };
+    const { error: removeError } = await db.storage
+      .from("avatars")
+      .remove([business.logo_path]);
+    if (removeError) return { ok: false, message: "Logo removal failed." };
+    const { error: updateError } = await db
+      .from("businesses")
+      .update({ logo_path: null })
+      .eq("id", parsed.data);
+    if (updateError)
+      return {
+        ok: false,
+        message:
+          "The logo was deleted, but the business profile could not be updated.",
+      };
+    revalidatePath("/", "layout");
+    return { ok: true, message: "Business logo deleted." };
+  }
+
+  const { data: profile, error: findError } = await db
+    .from("profiles")
+    .select("avatar_path,cv_path")
+    .eq("id", user.id)
+    .maybeSingle();
+  const path = kind === "avatar" ? profile?.avatar_path : profile?.cv_path;
+  if (findError || typeof path !== "string" || !path)
+    return {
+      ok: false,
+      message:
+        kind === "avatar" ? "No profile photo was found." : "No CV was found.",
+    };
+  if (!path.startsWith(`${user.id}/`))
+    return { ok: false, message: "This file cannot be removed." };
+
+  if (kind === "cv") {
+    const { count, error: useError } = await db
+      .from("applications")
+      .select("id", { head: true, count: "exact" })
+      .eq("applicant_id", user.id)
+      .eq("cv_path", path);
+    if (useError) return { ok: false, message: "Unable to check CV usage." };
+    const { error: updateError } = await db
+      .from("profiles")
+      .update({ cv_path: null })
+      .eq("id", user.id);
+    if (updateError) return { ok: false, message: "CV removal failed." };
+    revalidatePath("/", "layout");
+    if (count)
+      return {
+        ok: true,
+        message:
+          "CV removed from your profile. It remains available for applications that already use it.",
+      };
+    const { error: removeError } = await db.storage.from("cvs").remove([path]);
+    return {
+      ok: true,
+      message: removeError
+        ? "CV removed from your profile, but file cleanup could not be completed."
+        : "CV deleted.",
+    };
+  }
+
+  const { error: removeError } = await db.storage
+    .from("avatars")
+    .remove([path]);
+  if (removeError) return { ok: false, message: "Photo removal failed." };
+  const { error: updateError } = await db
+    .from("profiles")
+    .update({ avatar_path: null })
+    .eq("id", user.id);
+  if (updateError)
+    return {
+      ok: false,
+      message: "The photo was deleted, but your profile could not be updated.",
+    };
+  revalidatePath("/", "layout");
+  return { ok: true, message: "Profile photo deleted." };
 }
 export async function cvLink(id: string): Promise<Result> {
   const db = await supabase();

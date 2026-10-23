@@ -19,7 +19,7 @@ test("theme follows the system until explicitly selected, then persists across p
   await expect(root).toHaveAttribute("data-theme", "dark");
   await expect(page.locator(".job-card").first()).toHaveCSS(
     "background-color",
-    "rgb(26, 40, 32)",
+    "rgb(23, 37, 29)",
   );
   await page.goto("/register");
   await expect(page.getByLabel("Email address")).toHaveCSS(

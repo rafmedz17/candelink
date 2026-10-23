@@ -22,10 +22,15 @@ export function SaveButton({
         disabled={pending}
         onClick={async () => {
           setPending(true);
-          const result = await mutate("save", { id, remove: saved });
-          setPending(false);
-          if (result.ok) setSaved(!saved);
-          else setMessage(result.message);
+          try {
+            const result = await mutate("save", { id, remove: saved });
+            if (result.ok) setSaved(!saved);
+            else setMessage(result.message);
+          } catch {
+            setMessage("We couldn't update your saved jobs. Please try again.");
+          } finally {
+            setPending(false);
+          }
         }}
       >
         {pending ? (

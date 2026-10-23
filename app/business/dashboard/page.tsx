@@ -8,6 +8,19 @@ import {
   CvButton,
   PhotoUpload,
 } from "@/components/forms";
+
+const terminalApplicationStatuses = new Set([
+  "Accepted",
+  "Rejected",
+  "Withdrawn",
+]);
+
+const statusSlug = (status: string) =>
+  status.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+
+const statusBadgeClass = (status: string) =>
+  `badge status-badge status-badge--${statusSlug(status)}`;
+
 export default async function BusinessDashboard({
   searchParams,
 }: {
@@ -48,8 +61,23 @@ export default async function BusinessDashboard({
     .order("created_at", { ascending: false })
     .limit(50);
   const edit = jobs?.find((j) => j.id === p.edit);
+  const dashboardHref = (
+    nextTab: string,
+    extra: Record<string, string | undefined> = {},
+    businessId = b?.id,
+  ) => {
+    const query = new URLSearchParams({ tab: nextTab });
+    if (businessId) query.set("business", businessId);
+    for (const [key, value] of Object.entries(extra)) {
+      if (value) query.set(key, value);
+    }
+    return `?${query.toString()}`;
+  };
+  const filteredApps = (apps || []).filter(
+    (app) => !p.status || app.status === p.status,
+  );
   return (
-    <DashboardLayout role="business_owner" active={tab}>
+    <DashboardLayout role="business_owner" active={tab} businessId={b?.id}>
       <PageTitle
         eyebrow="LOCAL TALENT. YOUR NEXT GREAT TEAM."
         title={b ? b.name : "Let’s introduce your business."}
@@ -65,12 +93,47 @@ export default async function BusinessDashboard({
             <Link
               className="badge"
               key={x.id}
-              href={`?tab=${tab}&business=${x.id}`}
+              href={dashboardHref(
+                tab,
+                tab === "applicants" ? { status: p.status } : {},
+                x.id,
+              )}
             >
               {x.name}
             </Link>
           ))}
         </div>
+      )}
+      {b && (
+        <section
+          className={`workspace-status workspace-status-${b.verification_status}`}
+        >
+          <div>
+            <span>Business status</span>
+            <strong>
+              {b.verification_status === "verified"
+                ? "Verified and ready to hire"
+                : b.verification_status === "pending"
+                  ? "Awaiting verification"
+                  : `Verification ${b.verification_status}`}
+            </strong>
+            <p>
+              {b.verification_status === "verified"
+                ? "Your business can publish local opportunities."
+                : "Complete your business details and request a review before publishing jobs."}
+            </p>
+          </div>
+          <Link
+            className="button small"
+            href={dashboardHref(
+              b.verification_status === "verified" ? "new-job" : "profile",
+            )}
+          >
+            {b.verification_status === "verified"
+              ? "Post a job"
+              : "View business profile"}
+          </Link>
+        </section>
       )}
       {tab === "overview" && b && (
         <>
@@ -98,7 +161,7 @@ export default async function BusinessDashboard({
             <Link
               className="button"
               style={{ marginTop: 20 }}
-              href="?tab=new-job"
+              href={dashboardHref("new-job")}
             >
               Post a job ↗
             </Link>
@@ -279,22 +342,38 @@ export default async function BusinessDashboard({
         <div className="panel">
           <div className="section-heading">
             <h2>Job listings</h2>
-            <Link className="button small" href="?tab=new-job">
+            <Link className="button small" href={dashboardHref("new-job")}>
               Post a job ↗
             </Link>
           </div>
           {jobs?.length ? (
             jobs.map((j) => (
-              <div className="record" key={j.id}>
-                <div>
-                  <strong>{j.title}</strong>
-                  <p>
-                    {j.status} · {j.employment_type}
+              <article
+                className={`record job-listing-card job-listing-card--${statusSlug(
+                  j.status,
+                )}`}
+                key={j.id}
+              >
+                <div className="job-listing-card-content">
+                  <div className="job-listing-card-heading">
+                    <strong>{j.title}</strong>
+                    <span className={statusBadgeClass(j.status)}>
+                      {j.status}
+                    </span>
+                  </div>
+                  <p className="job-listing-card-meta">
+                    {j.employment_type} · {j.arrangement} · {j.location}
                   </p>
-                  <Link className="text-link" href={`?tab=jobs&edit=${j.id}`}>
+                  <Link
+                    className="text-link"
+                    href={dashboardHref("jobs", { edit: j.id })}
+                  >
                     Edit listing
                   </Link>
-                  <details style={{ marginTop: 12 }}>
+                  <details
+                    className="job-listing-preview"
+                    style={{ marginTop: 12 }}
+                  >
                     <summary>Preview listing</summary>
                     <h3>{j.title}</h3>
                     <p style={{ whiteSpace: "pre-line" }}>{j.description}</p>
@@ -306,7 +385,7 @@ export default async function BusinessDashboard({
                     <p>Deadline: {j.deadline}</p>
                   </details>
                 </div>
-                <div className="tags">
+                <div className="tags job-listing-actions">
                   {j.status !== "published" && (
                     <QuickAction
                       kind="job-status"
@@ -331,7 +410,7 @@ export default async function BusinessDashboard({
                     />
                   )}
                 </div>
-              </div>
+              </article>
             ))
           ) : (
             <p>No listings yet. Start with a draft.</p>
@@ -340,8 +419,13 @@ export default async function BusinessDashboard({
       )}
       {tab === "applicants" && (
         <>
-          <form className="panel">
+          <form
+            action="/business/dashboard"
+            className="panel applicant-filter"
+            method="get"
+          >
             <input type="hidden" name="tab" value="applicants" />
+            {b && <input type="hidden" name="business" value={b.id} />}
             <label>
               Status{" "}
               <select name="status" defaultValue={p.status || ""}>
@@ -363,89 +447,138 @@ export default async function BusinessDashboard({
               Filter applicants
             </button>
           </form>
-          {apps
-            ?.filter((x) => !p.status || x.status === p.status)
-            .map((app) => (
-              <section className="panel" key={app.id}>
-                <h2>{app.profiles?.full_name || "Applicant"}</h2>
-                <p>
-                  {app.jobs?.title} · {app.status}
-                </p>
-                <p>{app.profiles?.headline}</p>
-                <h3>Skills & experience</h3>
-                <p>
-                  {app.profiles?.skills}
-                  <br />
-                  {app.profiles?.education}
-                  <br />
-                  {app.profiles?.experience}
-                </p>
-                <h3>Cover letter</h3>
-                <p>{app.cover_letter || "No cover letter provided."}</p>
-                <CvButton id={app.id} />
-                <details style={{ marginTop: 15 }}>
-                  <summary>Report this account</summary>
-                  <ActionForm
-                    kind="report"
-                    hidden={{
-                      subject_type: "user",
-                      subject_id: app.applicant_id,
-                    }}
-                    fields={[
-                      {
-                        name: "reason",
-                        label: "Reason for reporting",
-                        type: "textarea",
-                        required: true,
-                      },
-                    ]}
-                    submit="Send report"
-                  />
-                </details>
-                <div style={{ marginTop: 20 }}>
-                  <ActionForm
-                    kind="application-status"
-                    hidden={{ id: app.id }}
-                    fields={[
-                      {
-                        name: "status",
-                        label: "Application status",
-                        options: [
-                          "Under Review",
-                          "Shortlisted",
-                          "Interview",
-                          "Accepted",
-                          "Rejected",
-                        ],
-                        value: app.status,
-                      },
-                    ]}
-                    submit="Update status"
-                  />
-                </div>
-                <details style={{ marginTop: 20 }}>
-                  <summary>Private hiring notes</summary>
-                  <ActionForm
-                    kind="note"
-                    hidden={{ application_id: app.id }}
-                    fields={[
-                      {
-                        name: "note",
-                        label: "Internal note · visible to this business only",
-                        type: "textarea",
-                        value: app.applicant_notes?.note || "",
-                      },
-                    ]}
-                  />
-                </details>
-              </section>
-            ))}
-          {!apps?.length && (
-            <div className="panel">
+          {filteredApps.length ? (
+            filteredApps.map((app) => {
+              const isFinal = terminalApplicationStatuses.has(app.status);
+              return (
+                <article
+                  className={`panel applicant-card applicant-card--${statusSlug(
+                    app.status,
+                  )}`}
+                  key={app.id}
+                >
+                  <header className="applicant-card-header">
+                    <div>
+                      <h2>{app.profiles?.full_name || "Applicant"}</h2>
+                      {app.profiles?.headline && (
+                        <p className="applicant-card-headline">
+                          {app.profiles.headline}
+                        </p>
+                      )}
+                      <p className="applicant-card-job">
+                        {app.jobs?.title || "Job opportunity"}
+                      </p>
+                    </div>
+                    <span className={statusBadgeClass(app.status)}>
+                      {app.status}
+                    </span>
+                  </header>
+                  <div className="applicant-card-actions">
+                    <CvButton id={app.id} />
+                    {isFinal ? (
+                      <p className="application-status-read-only">
+                        This application is final and can no longer be updated.
+                      </p>
+                    ) : (
+                      <div className="applicant-status-action">
+                        <ActionForm
+                          kind="application-status"
+                          hidden={{ id: app.id }}
+                          fields={[
+                            {
+                              name: "status",
+                              label: "Application status",
+                              options: [
+                                "Under Review",
+                                "Shortlisted",
+                                "Interview",
+                                "Accepted",
+                                "Rejected",
+                              ],
+                              value: app.status,
+                            },
+                          ]}
+                          submit="Update status"
+                        />
+                      </div>
+                    )}
+                  </div>
+                  <details className="applicant-card-details">
+                    <summary>View application details</summary>
+                    <div className="applicant-card-detail-content">
+                      <section>
+                        <h3>Skills</h3>
+                        <p>{app.profiles?.skills || "Not provided."}</p>
+                      </section>
+                      <section>
+                        <h3>Education</h3>
+                        <p>{app.profiles?.education || "Not provided."}</p>
+                      </section>
+                      <section>
+                        <h3>Experience</h3>
+                        <p>{app.profiles?.experience || "Not provided."}</p>
+                      </section>
+                      <section>
+                        <h3>Cover letter</h3>
+                        <p>{app.cover_letter || "No cover letter provided."}</p>
+                      </section>
+                      <details className="applicant-card-subsection">
+                        <summary>Report this account</summary>
+                        <ActionForm
+                          kind="report"
+                          hidden={{
+                            subject_type: "user",
+                            subject_id: app.applicant_id,
+                          }}
+                          fields={[
+                            {
+                              name: "reason",
+                              label: "Reason for reporting",
+                              type: "textarea",
+                              required: true,
+                            },
+                          ]}
+                          submit="Send report"
+                        />
+                      </details>
+                      <details className="applicant-card-subsection">
+                        <summary>Private hiring notes</summary>
+                        <ActionForm
+                          kind="note"
+                          hidden={{ application_id: app.id }}
+                          fields={[
+                            {
+                              name: "note",
+                              label:
+                                "Internal note · visible to this business only",
+                              type: "textarea",
+                              value: app.applicant_notes?.note || "",
+                            },
+                          ]}
+                        />
+                      </details>
+                    </div>
+                  </details>
+                </article>
+              );
+            })
+          ) : (
+            <div className="panel applicant-empty-state">
+              <h2>
+                {p.status
+                  ? `No ${p.status.toLowerCase()} applications`
+                  : "No applications yet"}
+              </h2>
               <p>
-                Applications will appear here when candidates apply to your
-                jobs.
+                {p.status
+                  ? "Try another status or clear the filter to see every applicant."
+                  : "Applications will appear here when candidates apply to your jobs."}
               </p>
+              {p.status && (
+                <Link className="text-link" href={dashboardHref("applicants")}>
+                  Clear status filter
+                </Link>
+              )}
             </div>
           )}
         </>
