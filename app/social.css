@@ -375,3 +375,19 @@
     display: none;
   }
 }
+.message-inbox-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.message-inbox-tabs a[aria-current="page"] {
+  background: var(--accent-soft);
+  border-color: var(--green);
+}
+.message-request-notice {
+  padding: 16px;
+  border-top: 1px solid var(--line);
+}
+.message-request-notice p {
+  margin-bottom: 12px;
+}

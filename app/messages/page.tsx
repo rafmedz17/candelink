@@ -7,6 +7,7 @@ import {
   InboxRefresh,
   MessageComposer,
   MessageThread,
+  MessageRequestActions,
 } from "@/components/social-controls";
 import { SocialPeer } from "@/components/social-peer";
 import { ConversationCard } from "@/components/conversation-card";
@@ -21,13 +22,25 @@ export default async function Messages({
   const a = await requireAccount();
   if (!a) return <SetupNeeded />;
   const p = await searchParams;
+  const requests = p.tab === "requests";
+  const tabQuery = requests ? "&tab=requests" : "";
+  const inboxHref = requests ? "/messages?tab=requests" : "/messages";
   const page = Math.min(1000, Math.max(1, Math.floor(Number(p.page) || 1)));
-  const { data, error } = await a.db.rpc("list_connections", {
+  const { data, error } = await a.db.rpc("list_message_conversations", {
     page_number: page,
+    requests,
   });
-  const connections: Connection[] = (data?.connections || []).filter(
-    (c: Connection) => c.status === "accepted" || c.last_message_at,
-  );
+  if (error) {
+    console.error(
+      `Message inbox query failed: ${JSON.stringify({
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+      })}`,
+    );
+  }
+  const connections: Connection[] = data?.connections || [];
   let selected: Connection | null = null;
   let messages: DirectMessage[] = [];
   let more = false;
@@ -61,9 +74,26 @@ export default async function Messages({
         <PageTitle
           eyebrow="KEEP THE CONVERSATION GOING"
           title="Messages"
-          description="Private conversations between you and your accepted friends."
+          description="Chat with friends and review messages from people you haven't connected with yet."
         />
         <div className="social-toolbar">
+          <nav className="message-inbox-tabs" aria-label="Message inboxes">
+            <Link
+              className="button outline"
+              href="/messages"
+              aria-current={!requests ? "page" : undefined}
+            >
+              Inbox
+            </Link>
+            <Link
+              className="button outline"
+              href="/messages?tab=requests"
+              aria-current={requests ? "page" : undefined}
+            >
+              Message requests
+              {data?.request_count > 0 ? ` (${data.request_count})` : ""}
+            </Link>
+          </nav>
           <Link className="text-link" href="/friends">
             Manage friends
           </Link>
@@ -82,7 +112,7 @@ export default async function Messages({
               className="panel conversation-list"
               aria-label="Conversations"
             >
-              <h2>Your conversations</h2>
+              <h2>{requests ? "Message requests" : "Your conversations"}</h2>
               {connections.length ? (
                 connections.map((c) => (
                   <ConversationCard
@@ -91,22 +121,28 @@ export default async function Messages({
                     userId={a.user.id}
                     selected={selected?.id === c.id}
                     page={page}
+                    requests={requests}
                   />
                 ))
               ) : (
                 <p>
-                  No conversations yet. Accept a friend request to start
-                  messaging.
+                  {requests
+                    ? "No message requests right now."
+                    : "No conversations yet. Find someone in people search to send a message."}
                 </p>
               )}
-              {data.total > 50 && (
+              {data?.total > 50 && (
                 <nav className="pagination" aria-label="Conversation pages">
                   {page > 1 && (
-                    <Link href={`/messages?page=${page - 1}`}>Previous</Link>
+                    <Link href={`/messages?page=${page - 1}${tabQuery}`}>
+                      Previous
+                    </Link>
                   )}
                   <span>Page {page}</span>
                   {page * 50 < data.total && (
-                    <Link href={`/messages?page=${page + 1}`}>Next</Link>
+                    <Link href={`/messages?page=${page + 1}${tabQuery}`}>
+                      Next
+                    </Link>
                   )}
                 </nav>
               )}
@@ -119,7 +155,7 @@ export default async function Messages({
                 <>
                   <h2>Conversation unavailable</h2>
                   <p>You can only open conversations you participate in.</p>
-                  <Link className="text-link" href="/messages">
+                  <Link className="text-link" href={inboxHref}>
                     Back to messages
                   </Link>
                 </>
@@ -128,7 +164,7 @@ export default async function Messages({
                   <div className="conversation-header">
                     <Link
                       className="text-link conversation-back"
-                      href="/messages"
+                      href={inboxHref}
                     >
                       ← All conversations
                     </Link>
@@ -138,7 +174,7 @@ export default async function Messages({
                     {more && messages[0] && (
                       <Link
                         className="text-link"
-                        href={`/messages?conversation=${selected.id}&before=${messages[0].id}&page=${page}`}
+                        href={`/messages?conversation=${selected.id}&before=${messages[0].id}&page=${page}${tabQuery}`}
                       >
                         Older messages
                       </Link>
@@ -146,7 +182,7 @@ export default async function Messages({
                     {p.before && (
                       <Link
                         className="text-link"
-                        href={`/messages?conversation=${selected.id}&page=${page}`}
+                        href={`/messages?conversation=${selected.id}&page=${page}${tabQuery}`}
                       >
                         Latest messages
                       </Link>
@@ -161,15 +197,41 @@ export default async function Messages({
                     }
                   />
                   {!p.before &&
-                    (selected.status === "accepted" && selected.peer.active ? (
-                      <MessageComposer
+                    (selected.peer.active &&
+                    (selected.status === "accepted" ||
+                      selected.message_status === "accepted" ||
+                      (selected.message_status === "pending" &&
+                        selected.message_requester_id === a.user.id &&
+                        !selected.message_intro_id)) ? (
+                      <>
+                        {selected.status !== "accepted" &&
+                          selected.message_status === "pending" && (
+                            <p className="form-message">
+                              Your first message will go to Message requests.
+                              You can send more after it is accepted.
+                            </p>
+                          )}
+                        <MessageComposer
+                          key={selected.id}
+                          connectionId={selected.id}
+                        />
+                      </>
+                    ) : selected.peer.active &&
+                      selected.status !== "accepted" &&
+                      selected.message_status === "pending" &&
+                      selected.message_requester_id !== a.user.id ? (
+                      <MessageRequestActions
                         key={selected.id}
                         connectionId={selected.id}
                       />
                     ) : (
                       <p className="form-message">
-                        New messages are unavailable. Messaging requires an
-                        active friendship.
+                        {selected.message_status === "pending" &&
+                        selected.peer.active
+                          ? "Message request sent. You can send more after the recipient accepts."
+                          : selected.message_status === "declined"
+                            ? "This message request was declined. New messages are unavailable."
+                            : "New messages are unavailable for this conversation."}
                       </p>
                     ))}
                 </>
@@ -177,11 +239,9 @@ export default async function Messages({
                 <div className="conversation-empty">
                   <MessageCircle size={36} aria-hidden="true" />
                   <h2>Choose a conversation</h2>
-                  <p>
-                    Open a friend&apos;s conversation to read or send a message.
-                  </p>
-                  <Link className="button outline" href="/friends">
-                    Go to friends
+                  <p>Select a conversation or find someone to message.</p>
+                  <Link className="button outline" href="/people">
+                    Find people
                   </Link>
                 </div>
               )}

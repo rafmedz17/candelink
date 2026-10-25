@@ -8,16 +8,18 @@ export function ConversationCard({
   userId,
   selected = false,
   page = 1,
+  requests = false,
 }: {
   connection: Connection;
   userId: string;
   selected?: boolean;
   page?: number;
+  requests?: boolean;
 }) {
   const { peer, last_message: last, unread_count: unread = 0 } = connection;
   return (
     <Link
-      href={`/messages?conversation=${connection.id}&page=${page}`}
+      href={`/messages?conversation=${connection.id}&page=${page}${requests ? "&tab=requests" : ""}`}
       className={`conversation-card ${selected ? "selected" : ""} ${unread > 0 ? "has-unread" : ""}`}
       aria-current={selected ? "page" : undefined}
     >
@@ -38,6 +40,14 @@ export function ConversationCard({
       </span>
       <span className="conversation-card-copy">
         <strong>{peer.full_name || "Community member"}</strong>
+        {connection.status !== "accepted" &&
+          connection.message_status === "pending" && (
+            <small>
+              {connection.message_requester_id === userId
+                ? "Request sent"
+                : "Message request"}
+            </small>
+          )}
         <span className="conversation-preview">
           {last
             ? `${last.sender_id === userId ? "You: " : ""}${last.body}`

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { PGlite } from "@electric-sql/pglite";
 import { readFile, readdir } from "node:fs/promises";
 import { jobSchema, mapLocationSchema } from "../lib/validation.ts";
+import { createMessageId } from "../lib/social.ts";
 const db = new PGlite();
 const ids = {
   seeker: "10000000-0000-4000-8000-000000000001",
@@ -83,6 +84,274 @@ before(async () => {
   ).rows[0].id;
 });
 after(() => db.close());
+// Request fixtures use their own participants so friendship tests stay independent.
+let messageRequest;
+const introductionId = "a0000000-0000-4000-8000-000000000001";
+
+test("message identifiers work when randomUUID is unavailable over LAN HTTP", () => {
+  const descriptor = Object.getOwnPropertyDescriptor(
+    globalThis.crypto,
+    "randomUUID",
+  );
+  Object.defineProperty(globalThis.crypto, "randomUUID", {
+    value: undefined,
+    configurable: true,
+  });
+  try {
+    const messages = Array.from({ length: 100 }, () => createMessageId());
+    assert.equal(new Set(messages).size, 100);
+    for (const id of messages)
+      assert.match(
+        id,
+        /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+      );
+  } finally {
+    if (descriptor)
+      Object.defineProperty(globalThis.crypto, "randomUUID", descriptor);
+    else delete globalThis.crypto.randomUUID;
+  }
+});
+
+test("non-friends can send one private introduction into message requests", async () => {
+  ids.requestSender = "a0000000-0000-4000-8000-000000000010";
+  ids.requestRecipient = "a0000000-0000-4000-8000-000000000011";
+  ids.requestDecliner = "a0000000-0000-4000-8000-000000000012";
+  for (const name of ["requestSender", "requestRecipient", "requestDecliner"]) {
+    await db.query(
+      "insert into auth.users(id,raw_user_meta_data) values($1,$2)",
+      [ids[name], JSON.stringify({ full_name: name })],
+    );
+    await db.query(
+      "update public.profiles set public_profile=true where id=$1",
+      [ids[name]],
+    );
+  }
+  await as("anon", () =>
+    assert.rejects(
+      db.query("select public.start_message_request($1)", [
+        ids.requestRecipient,
+      ]),
+    ),
+  );
+  await as("requestSender", async () => {
+    await assert.rejects(
+      db.query("select public.start_message_request($1)", [ids.requestSender]),
+    );
+    await assert.rejects(
+      db.query("select public.start_message_request($1)", [ids.owner]),
+    );
+    messageRequest = (
+      await db.query("select public.start_message_request($1) as id", [
+        ids.requestRecipient,
+      ])
+    ).rows[0].id;
+    assert.equal(
+      (
+        await db.query("select public.start_message_request($1) as id", [
+          ids.requestRecipient,
+        ])
+      ).rows[0].id,
+      messageRequest,
+    );
+    await assert.rejects(
+      db.query("select public.respond_message_request($1,'accept')", [
+        messageRequest,
+      ]),
+    );
+    await db.query(
+      "select public.send_direct_message($1,$2,'Hello from a non-friend')",
+      [messageRequest, introductionId],
+    );
+    // Retrying an identical introduction must not create a second message or notification.
+    await db.query(
+      "select public.send_direct_message($1,$2,'Hello from a non-friend')",
+      [messageRequest, introductionId],
+    );
+    await assert.rejects(
+      db.query(
+        "select public.send_direct_message($1,gen_random_uuid(),'Another intro')",
+        [messageRequest],
+      ),
+    );
+    assert.equal(
+      (await db.query("select public.list_message_conversations() as data"))
+        .rows[0].data.total,
+      1,
+    );
+  });
+  await as("requestRecipient", async () => {
+    const inbox = (
+      await db.query("select public.list_message_conversations() as data")
+    ).rows[0].data;
+    assert.equal(inbox.total, 0);
+    assert.equal(inbox.request_count, 1);
+    const requests = (
+      await db.query("select public.list_message_conversations(1,true) as data")
+    ).rows[0].data;
+    assert.equal(requests.total, 1);
+    assert.equal(requests.connections[0].unread_count, 1);
+    assert.equal(requests.connections[0].last_message.id, introductionId);
+    assert.equal(
+      (await db.query("select public.account_activity() as data")).rows[0].data
+        .friends,
+      0,
+    );
+    assert.equal(
+      (await db.query("select * from public.notifications")).rows.length,
+      1,
+    );
+    await assert.rejects(
+      db.query(
+        "select public.send_direct_message($1,gen_random_uuid(),'Reply before consent')",
+        [messageRequest],
+      ),
+    );
+  });
+  await as("outsider", async () => {
+    await assert.rejects(
+      db.query("select public.respond_message_request($1,'accept')", [
+        messageRequest,
+      ]),
+    );
+    await assert.rejects(
+      db.query("select public.conversation_messages($1)", [messageRequest]),
+    );
+    await assert.rejects(
+      db.query(
+        "select public.send_direct_message($1,gen_random_uuid(),'Intrusion')",
+        [messageRequest],
+      ),
+    );
+    assert.equal(
+      (
+        await db.query(
+          "select * from public.direct_messages where friendship_id=$1",
+          [messageRequest],
+        )
+      ).rows.length,
+      0,
+    );
+  });
+});
+
+test("accepting a message request enables replies without accepting a friendship", async () => {
+  await as("requestSender", () =>
+    db.query("select public.friend_action($1,'request')", [
+      ids.requestRecipient,
+    ]),
+  );
+  await as("requestRecipient", async () => {
+    await assert.rejects(
+      db.query("select public.respond_message_request($1,null)", [
+        messageRequest,
+      ]),
+    );
+    await db.query("select public.respond_message_request($1,'accept')", [
+      messageRequest,
+    ]);
+    const connection = (
+      await db.query("select public.connection_details($1) as data", [
+        messageRequest,
+      ])
+    ).rows[0].data;
+    assert.equal(connection.status, "pending");
+    assert.equal(connection.message_status, "accepted");
+    assert.equal(
+      (
+        await db.query(
+          "select public.list_message_conversations(1,true) as data",
+        )
+      ).rows[0].data.total,
+      0,
+    );
+    assert.equal(
+      (await db.query("select public.list_message_conversations() as data"))
+        .rows[0].data.total,
+      1,
+    );
+    await db.query(
+      "select public.send_direct_message($1,gen_random_uuid(),'Thanks for reaching out')",
+      [messageRequest],
+    );
+  });
+  await as("requestSender", () =>
+    db.query(
+      "select public.send_direct_message($1,gen_random_uuid(),'Thanks!')",
+      [messageRequest],
+    ),
+  );
+  await db.query("update public.profiles set suspended=true where id=$1", [
+    ids.requestRecipient,
+  ]);
+  await as("requestSender", () =>
+    assert.rejects(
+      db.query(
+        "select public.send_direct_message($1,gen_random_uuid(),'Blocked')",
+        [messageRequest],
+      ),
+    ),
+  );
+  await db.query("update public.profiles set suspended=false where id=$1", [
+    ids.requestRecipient,
+  ]);
+});
+
+test("declining a message request prevents resending and does not affect friend requests", async () => {
+  let connection;
+  await as("requestSender", async () => {
+    connection = (
+      await db.query("select public.start_message_request($1) as id", [
+        ids.requestDecliner,
+      ])
+    ).rows[0].id;
+    await db.query(
+      "select public.send_direct_message($1,gen_random_uuid(),'Hello')",
+      [connection],
+    );
+  });
+  await as("requestDecliner", () =>
+    db.query("select public.respond_message_request($1,'decline')", [
+      connection,
+    ]),
+  );
+  await as("requestSender", async () => {
+    assert.equal(
+      (
+        await db.query("select public.start_message_request($1) as id", [
+          ids.requestDecliner,
+        ])
+      ).rows[0].id,
+      connection,
+    );
+    await assert.rejects(
+      db.query(
+        "select public.send_direct_message($1,gen_random_uuid(),'Try again')",
+        [connection],
+      ),
+    );
+  });
+  await as("requestDecliner", async () => {
+    await assert.rejects(
+      db.query(
+        "select public.send_direct_message($1,gen_random_uuid(),'Reply')",
+        [connection],
+      ),
+    );
+    await assert.rejects(
+      db.query("select public.respond_message_request($1,'accept')", [
+        connection,
+      ]),
+    );
+    assert.equal(
+      (
+        await db.query(
+          "select public.list_message_conversations(1,true) as data",
+        )
+      ).rows[0].data.total,
+      0,
+    );
+  });
+});
 let friendship;
 
 test("job input normalizes empty deadlines and still rejects invalid dates", () => {
@@ -1496,4 +1765,51 @@ test("map discovery bounds its results and paginates without duplicate opportuni
       105,
     );
   });
+});
+
+test("unread helper repair restores the inbox and can be repeated without losing messages or read positions", async () => {
+  const before = (
+    await db.query("select count(*) as count from public.direct_messages")
+  ).rows[0].count;
+  const reads = (
+    await db.query("select count(*) as count from private.conversation_reads")
+  ).rows[0].count;
+  await db.exec("drop function private.unread_message_count(uuid)");
+  await as("requestRecipient", () =>
+    assert.rejects(
+      db.query("select public.list_message_conversations()"),
+      /unread_message_count/,
+    ),
+  );
+  const repair = await readFile(
+    new URL(
+      "../supabase/migrations/20261025171154_repair_unread_message_helpers.sql",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  await db.exec(repair);
+  await db.exec(repair);
+  await as("requestRecipient", async () => {
+    const inbox = (
+      await db.query("select public.list_message_conversations() as data")
+    ).rows[0].data;
+    assert.equal(inbox.connections[0].id, messageRequest);
+    assert.equal(inbox.connections[0].message_status, "accepted");
+  });
+  assert.equal(
+    (await db.query("select count(*) as count from public.direct_messages"))
+      .rows[0].count,
+    before,
+  );
+  assert.equal(
+    (await db.query("select count(*) as count from private.conversation_reads"))
+      .rows[0].count,
+    reads,
+  );
+  await as("anon", () =>
+    assert.rejects(
+      db.query("select private.unread_message_count($1)", [messageRequest]),
+    ),
+  );
 });

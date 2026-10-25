@@ -73,7 +73,7 @@ export async function friendAction(
           accept: "Friend request accepted. You can now message each other.",
           decline: "Request declined.",
           cancel: "Request canceled.",
-          remove: "Friend removed. New messages are disabled.",
+          remove: "Friend removed.",
         } as Record<string, string>
       )[decision],
     };
@@ -117,7 +117,9 @@ export async function sendMessage(
         ok: false,
         message: error.message.includes("Daily action")
           ? "You've reached today's message limit."
-          : "Message not sent. Check that you are still friends, then try again.",
+          : error.message.includes("request")
+            ? "Wait for the recipient to accept your message request before sending more."
+            : "Message not sent. Refresh the conversation and try again.",
       };
     revalidatePath("/messages");
     return { ok: true, message: "Message sent." };
@@ -126,5 +128,70 @@ export async function sendMessage(
       ok: false,
       message: "Message not sent. Check your connection and retry.",
     };
+  }
+}
+
+export async function startMessageRequest(target: string): Promise<Result> {
+  if (!z.uuid().safeParse(target).success)
+    return { ok: false, message: "Invalid recipient." };
+  try {
+    const db = await supabase();
+    if (!db) return { ok: false, message: "Messaging is not configured yet." };
+    const { data, error } = await db.rpc("start_message_request", {
+      target_user: target,
+    });
+    if (error || !data)
+      return {
+        ok: false,
+        message: error?.message.includes("Daily action")
+          ? "You've reached today's message request limit. Try again tomorrow."
+          : "This conversation could not be opened. Refresh and try again.",
+      };
+    revalidatePath("/messages");
+    return {
+      ok: true,
+      message: "Conversation opened.",
+      url: `/messages?conversation=${data}`,
+    };
+  } catch {
+    return { ok: false, message: "Check your connection and try again." };
+  }
+}
+
+export async function respondMessageRequest(
+  connection: string,
+  decision: string,
+): Promise<Result> {
+  if (
+    !z.uuid().safeParse(connection).success ||
+    !["accept", "decline"].includes(decision)
+  )
+    return { ok: false, message: "Invalid message request." };
+  try {
+    const db = await supabase();
+    if (!db) return { ok: false, message: "Messaging is not configured yet." };
+    const { error } = await db.rpc("respond_message_request", {
+      connection_id: connection,
+      decision,
+    });
+    if (error)
+      return {
+        ok: false,
+        message: "This request could not be updated. Refresh and try again.",
+      };
+    revalidatePath("/messages");
+    return {
+      ok: true,
+      message:
+        decision === "accept"
+          ? "Message request accepted."
+          : "Message request declined.",
+      url:
+        decision === "accept"
+          ? `/messages?conversation=${connection}`
+          : "/messages?tab=requests",
+    };
+  } catch {
+    return { ok: false, message: "Check your connection and try again." };
   }
 }

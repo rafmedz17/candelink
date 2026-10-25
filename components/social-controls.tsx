@@ -8,10 +8,13 @@ import {
   friendAction,
   sendMessage,
   markConversationRead,
+  startMessageRequest,
+  respondMessageRequest,
 } from "@/app/social-actions";
 import { notifyActivityChanged } from "./activity-badge";
 import type { Result } from "@/app/actions";
 import type { DirectMessage } from "@/lib/social";
+import { createMessageId } from "@/lib/social";
 
 export function FriendActions({
   targetId,
@@ -33,7 +36,7 @@ export function FriendActions({
     if (
       decision === "remove" &&
       !window.confirm(
-        "Remove this friend? You will keep your conversation history, but cannot send new messages.",
+        "Remove this friend? Your conversation history will be kept. Messaging remains available if you separately accepted a message request.",
       )
     )
       return;
@@ -56,6 +59,9 @@ export function FriendActions({
   }
   return (
     <div className="friend-actions">
+      {status !== "accepted" && active && (
+        <MessageRequestButton targetId={targetId} />
+      )}
       {status === "accepted" ? (
         <>
           <Link
@@ -226,7 +232,7 @@ export function MessageThread({
           key={m.id}
         >
           <span className="message-author">
-            {m.sender_id === userId ? "You" : "Your friend"}
+            {m.sender_id === userId ? "You" : "Community member"}
           </span>
           <p>{m.body}</p>
           <time dateTime={m.created_at}>
@@ -262,8 +268,8 @@ export function MessageComposer({ connectionId }: { connectionId: string }) {
         e.preventDefault();
         if (pending || !body.trim()) return;
         setPending(true);
-        nonce.current ??= crypto.randomUUID();
         try {
+          nonce.current ??= createMessageId();
           const r = await sendMessage(connectionId, nonce.current, body);
           setResult(r);
           if (r.ok) {
@@ -315,5 +321,97 @@ export function MessageComposer({ connectionId }: { connectionId: string }) {
         </p>
       )}
     </form>
+  );
+}
+
+export function MessageRequestButton({ targetId }: { targetId: string }) {
+  const router = useRouter();
+  const [pending, setPending] = useState(false);
+  const [result, setResult] = useState<Result | null>(null);
+  return (
+    <>
+      <button
+        className="button outline"
+        disabled={pending}
+        onClick={async () => {
+          setPending(true);
+          try {
+            const r = await startMessageRequest(targetId);
+            setResult(r);
+            if (r.url) router.push(r.url);
+          } catch {
+            setResult({
+              ok: false,
+              message: "Check your connection and try again.",
+            });
+          } finally {
+            setPending(false);
+          }
+        }}
+      >
+        <MessageCircle size={17} aria-hidden="true" />
+        {pending ? "Opening…" : "Message"}
+      </button>
+      {result && !result.ok && (
+        <p className="form-message error" role="alert">
+          {result.message}
+        </p>
+      )}
+    </>
+  );
+}
+
+export function MessageRequestActions({
+  connectionId,
+}: {
+  connectionId: string;
+}) {
+  const router = useRouter();
+  const [pending, setPending] = useState(false);
+  const [result, setResult] = useState<Result | null>(null);
+  async function respond(decision: string) {
+    setPending(true);
+    try {
+      const r = await respondMessageRequest(connectionId, decision);
+      setResult(r);
+      if (r.ok) {
+        notifyActivityChanged();
+        if (r.url) router.push(r.url);
+        router.refresh();
+      }
+    } catch {
+      setResult({ ok: false, message: "Check your connection and try again." });
+    } finally {
+      setPending(false);
+    }
+  }
+  return (
+    <div className="message-request-notice">
+      <p>
+        Accept this message request to reply. This does not add the sender as a
+        friend.
+      </p>
+      <div className="friend-actions">
+        <button
+          className="button"
+          disabled={pending}
+          onClick={() => respond("accept")}
+        >
+          Accept message request
+        </button>
+        <button
+          className="button outline"
+          disabled={pending}
+          onClick={() => respond("decline")}
+        >
+          Decline message request
+        </button>
+      </div>
+      {result && !result.ok && (
+        <p className="form-message error" role="alert">
+          {result.message}
+        </p>
+      )}
+    </div>
   );
 }
