@@ -10,6 +10,7 @@ import {
   markConversationRead,
   startMessageRequest,
   respondMessageRequest,
+  blockUser,
 } from "@/app/social-actions";
 import { notifyActivityChanged } from "./activity-badge";
 import type { Result } from "@/app/actions";
@@ -22,12 +23,16 @@ export function FriendActions({
   incoming = false,
   connectionId,
   active = true,
+  blocked = false,
+  blockedByMe = false,
 }: {
   targetId: string;
   status?: string;
   incoming?: boolean;
   connectionId?: string;
   active?: boolean;
+  blocked?: boolean;
+  blockedByMe?: boolean;
 }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
@@ -57,8 +62,22 @@ export function FriendActions({
       setPending(false);
     }
   }
+  if (blocked)
+    return (
+      <div className="friend-actions">
+        <p>
+          {blockedByMe
+            ? "You blocked this person."
+            : "New messages and friend requests are unavailable."}
+        </p>
+        <BlockButton targetId={targetId} blockedByMe={blockedByMe} />
+      </div>
+    );
   return (
     <div className="friend-actions">
+      {status !== "accepted" && (
+        <BlockButton targetId={targetId} blockedByMe={blockedByMe} />
+      )}
       {status !== "accepted" && active && (
         <MessageRequestButton targetId={targetId} />
       )}
@@ -71,6 +90,7 @@ export function FriendActions({
             <MessageCircle size={17} aria-hidden="true" />
             Message
           </Link>
+          <BlockButton targetId={targetId} blockedByMe={blockedByMe} />
           <button
             className="button outline"
             disabled={pending}
@@ -149,6 +169,65 @@ export function InboxRefresh() {
     >
       Refresh
     </button>
+  );
+}
+
+export function BlockButton({
+  targetId,
+  blockedByMe = false,
+}: {
+  targetId: string;
+  blockedByMe?: boolean;
+}) {
+  const router = useRouter();
+  const [pending, setPending] = useState(false);
+  const [result, setResult] = useState<Result | null>(null);
+  return (
+    <div className="block-control">
+      <button
+        type="button"
+        className="button outline"
+        disabled={pending}
+        onClick={async () => {
+          if (
+            !blockedByMe &&
+            !window.confirm(
+              "Block this person? Neither of you can send new messages or friend requests. Your conversation history will be kept.",
+            )
+          )
+            return;
+          setPending(true);
+          try {
+            const r = await blockUser(
+              targetId,
+              blockedByMe ? "unblock" : "block",
+            );
+            setResult(r);
+            if (r.ok) {
+              notifyActivityChanged();
+              router.refresh();
+            }
+          } catch {
+            setResult({
+              ok: false,
+              message: "Check your connection and try again.",
+            });
+          } finally {
+            setPending(false);
+          }
+        }}
+      >
+        {pending ? "Please wait…" : blockedByMe ? "Unblock" : "Block"}
+      </button>
+      {result && (
+        <p
+          className={`form-message ${result.ok ? "" : "error"}`}
+          role={result.ok ? "status" : "alert"}
+        >
+          {result.message}
+        </p>
+      )}
+    </div>
   );
 }
 

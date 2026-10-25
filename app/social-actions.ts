@@ -5,6 +5,42 @@ import { revalidatePath } from "next/cache";
 import { supabase } from "@/lib/supabase/server";
 import type { Result } from "./actions";
 
+export async function blockUser(
+  target: string,
+  decision: string,
+): Promise<Result> {
+  if (
+    !z.uuid().safeParse(target).success ||
+    !["block", "unblock"].includes(decision)
+  )
+    return { ok: false, message: "Invalid block action." };
+  try {
+    const db = await supabase();
+    if (!db) return { ok: false, message: "Account services are unavailable." };
+    const { error } = await db.rpc("block_action", {
+      target_user: target,
+      decision,
+    });
+    if (error)
+      return {
+        ok: false,
+        message: "Couldn't update this block. Refresh and try again.",
+      };
+    revalidatePath("/friends");
+    revalidatePath("/messages");
+    revalidatePath(`/profiles/${target}`);
+    return {
+      ok: true,
+      message:
+        decision === "block"
+          ? "Person blocked. New messages and friend requests are disabled."
+          : "Person unblocked. Your previous friendship is not restored.",
+    };
+  } catch {
+    return { ok: false, message: "Check your connection and try again." };
+  }
+}
+
 export async function markConversationRead(
   connection: string,
   lastMessage: string,

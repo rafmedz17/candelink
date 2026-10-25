@@ -2,7 +2,11 @@ import Link from "next/link";
 import { requireAccount } from "@/lib/access";
 import { DashboardLayout, SetupNeeded } from "@/components/dashboard";
 import { PageTitle } from "@/components/site";
-import { FriendActions, InboxRefresh } from "@/components/social-controls";
+import {
+  BlockButton,
+  FriendActions,
+  InboxRefresh,
+} from "@/components/social-controls";
 import { SocialPeer } from "@/components/social-peer";
 import type { Connection } from "@/lib/social";
 
@@ -18,6 +22,62 @@ export default async function Friends({
     1000,
     Math.max(1, Math.floor(Number(params.page) || 1)),
   );
+  if (params.tab === "blocked") {
+    const { data, error } = await a.db.rpc("list_blocked_users", {
+      page_number: page,
+    });
+    const people: { id: string; full_name: string }[] = data?.people || [];
+    return (
+      <DashboardLayout role={a.profile.role} active="friends">
+        <PageTitle
+          eyebrow="MANAGE YOUR CONNECTIONS"
+          title="Blocked people"
+          description="Manage people you have blocked. Unblocking does not restore a previous friendship."
+        />
+        <div className="social-toolbar">
+          <Link className="text-link" href="/friends">
+            Back to friends
+          </Link>
+          <InboxRefresh />
+        </div>
+        {error ? (
+          <div className="panel" role="status">
+            Blocked people are currently unavailable. Please try again shortly.
+          </div>
+        ) : (
+          <>
+            <div className="panel">
+              {people.length ? (
+                people.map((person) => (
+                  <div className="connection-card" key={person.id}>
+                    <strong>{person.full_name || "Community member"}</strong>
+                    <BlockButton targetId={person.id} blockedByMe />
+                  </div>
+                ))
+              ) : (
+                <p>You have no blocked people.</p>
+              )}
+            </div>
+            {data?.total > 50 && (
+              <nav className="pagination" aria-label="Blocked people pages">
+                {page > 1 && (
+                  <Link href={`/friends?tab=blocked&page=${page - 1}`}>
+                    Previous
+                  </Link>
+                )}
+                <span>Page {page}</span>
+                {page * 50 < data.total && (
+                  <Link href={`/friends?tab=blocked&page=${page + 1}`}>
+                    Next
+                  </Link>
+                )}
+              </nav>
+            )}
+          </>
+        )}
+      </DashboardLayout>
+    );
+  }
   const { data, error } = await a.db.rpc("list_connections", {
     page_number: page,
   });
@@ -53,6 +113,9 @@ export default async function Friends({
       <div className="social-toolbar">
         <Link className="button" href="/people">
           Find people
+        </Link>
+        <Link className="text-link" href="/friends?tab=blocked">
+          Blocked people
         </Link>
         <InboxRefresh />
       </div>

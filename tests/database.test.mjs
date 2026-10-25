@@ -1847,3 +1847,270 @@ test("moderation reasons are optional while admin authorization and auditing rem
     );
   });
 });
+
+test("blocking prevents contact in both directions and keeps history private", async () => {
+  await as("anon", () =>
+    assert.rejects(
+      db.query("select public.block_action($1,'block')", [
+        ids.requestRecipient,
+      ]),
+    ),
+  );
+  await as("requestSender", async () => {
+    await assert.rejects(
+      db.query("select public.block_action($1,'block')", [ids.requestSender]),
+    );
+    await assert.rejects(
+      db.query("select public.block_action($1,'block')", [ids.owner]),
+    );
+    await db.query("select public.block_action($1,'block')", [
+      ids.requestRecipient,
+    ]);
+    await db.query("select public.block_action($1,'block')", [
+      ids.requestRecipient,
+    ]);
+    assert.deepEqual(
+      (
+        await db.query("select public.block_state($1) as state", [
+          ids.requestRecipient,
+        ])
+      ).rows[0].state,
+      { blocked: true, blocked_by_me: true },
+    );
+    const people = (
+      await db.query("select public.list_blocked_users() as data")
+    ).rows[0].data;
+    assert.equal(people.total, 1);
+    assert.equal(people.people[0].id, ids.requestRecipient);
+  });
+  for (const [who, peer] of [
+    ["requestSender", "requestRecipient"],
+    ["requestRecipient", "requestSender"],
+  ]) {
+    await as(who, async () => {
+      await assert.rejects(
+        db.query("select public.start_message_request($1)", [ids[peer]]),
+      );
+      await assert.rejects(
+        db.query("select public.friend_action($1,'request')", [ids[peer]]),
+      );
+      await assert.rejects(
+        db.query("select public.friend_action($1,'accept')", [ids[peer]]),
+      );
+      await assert.rejects(
+        db.query("select public.respond_message_request($1,'accept')", [
+          messageRequest,
+        ]),
+      );
+      await assert.rejects(
+        db.query(
+          "select public.send_direct_message($1,gen_random_uuid(),'Blocked')",
+          [messageRequest],
+        ),
+      );
+      const history = (
+        await db.query("select public.conversation_messages($1) as data", [
+          messageRequest,
+        ])
+      ).rows[0].data;
+      assert.equal(history.messages.length, 3);
+    });
+  }
+  await as("requestRecipient", async () => {
+    await db.query("select public.block_action($1,'unblock')", [
+      ids.requestSender,
+    ]);
+    assert.deepEqual(
+      (
+        await db.query("select public.block_state($1) as state", [
+          ids.requestSender,
+        ])
+      ).rows[0].state,
+      { blocked: true, blocked_by_me: false },
+    );
+    assert.equal(
+      (await db.query("select public.list_blocked_users() as data")).rows[0]
+        .data.total,
+      0,
+    );
+  });
+  for (const who of ["requestSender", "requestRecipient", "admin"])
+    await as(who, () =>
+      assert.rejects(db.query("select * from private.user_blocks")),
+    );
+  await as("admin", async () => {
+    assert.equal(
+      (await db.query("select public.list_blocked_users() as data")).rows[0]
+        .data.total,
+      0,
+    );
+    await assert.rejects(
+      db.query("select public.conversation_messages($1)", [messageRequest]),
+    );
+  });
+});
+
+test("mutual blocks require each owner to unblock and consent is not restored", async () => {
+  await as("requestRecipient", () =>
+    db.query("select public.block_action($1,'block')", [ids.requestSender]),
+  );
+  await as("requestSender", async () => {
+    await db.query("select public.block_action($1,'unblock')", [
+      ids.requestRecipient,
+    ]);
+    assert.equal(
+      (
+        await db.query("select public.block_state($1) as state", [
+          ids.requestRecipient,
+        ])
+      ).rows[0].state.blocked,
+      true,
+    );
+    await assert.rejects(
+      db.query(
+        "select public.send_direct_message($1,gen_random_uuid(),'Still blocked')",
+        [messageRequest],
+      ),
+    );
+  });
+  await as("requestRecipient", () =>
+    db.query("select public.block_action($1,'unblock')", [ids.requestSender]),
+  );
+  await as("requestSender", async () => {
+    const state = (
+      await db.query("select public.block_state($1) as state", [
+        ids.requestRecipient,
+      ])
+    ).rows[0].state;
+    assert.deepEqual(state, { blocked: false, blocked_by_me: false });
+    const connection = (
+      await db.query("select public.connection_details($1) as data", [
+        messageRequest,
+      ])
+    ).rows[0].data;
+    assert.equal(connection.status, "removed");
+    assert.equal(connection.message_status, null);
+    await assert.rejects(
+      db.query(
+        "select public.send_direct_message($1,gen_random_uuid(),'No consent')",
+        [messageRequest],
+      ),
+    );
+    await db.query("select public.start_message_request($1)", [
+      ids.requestRecipient,
+    ]);
+    await db.query(
+      "select public.send_direct_message($1,gen_random_uuid(),'New introduction after unblocking')",
+      [messageRequest],
+    );
+    await assert.rejects(
+      db.query(
+        "select public.send_direct_message($1,gen_random_uuid(),'Wait for consent')",
+        [messageRequest],
+      ),
+    );
+  });
+});
+
+test("blocking an accepted friend removes friendship and stops messages", async () => {
+  await as("reader", () =>
+    db.query("select public.block_action($1,'block')", [ids.writer]),
+  );
+  for (const [who, peer] of [
+    ["reader", "writer"],
+    ["writer", "reader"],
+  ])
+    await as(who, async () => {
+      await assert.rejects(
+        db.query(
+          "select public.send_direct_message($1,gen_random_uuid(),'Blocked friend')",
+          [readConnection],
+        ),
+      );
+      await assert.rejects(
+        db.query("select public.friend_action($1,'request')", [ids[peer]]),
+      );
+      assert.equal(
+        (
+          await db.query("select public.connection_details($1) as data", [
+            readConnection,
+          ])
+        ).rows[0].data.status,
+        "removed",
+      );
+    });
+});
+
+test("blocked accounts cannot search or open their blocker's public profile; unblocking restores visibility", async () => {
+  await as("requestSender", () =>
+    db.query("select public.block_action($1,'block')", [ids.requestRecipient]),
+  );
+  await as("requestRecipient", async () => {
+    const search = (
+      await db.query("select public.search_people('requestSender') as data")
+    ).rows[0].data;
+    assert.equal(search.total, 0);
+    assert.deepEqual(search.people, []);
+    assert.equal(
+      (
+        await db.query("select public.get_public_profile($1) as profile", [
+          ids.requestSender,
+        ])
+      ).rows[0].profile,
+      null,
+    );
+    // Calling the private projection directly must not bypass the visibility rule.
+    assert.equal(
+      (
+        await db.query("select private.public_profile($1) as profile", [
+          ids.requestSender,
+        ])
+      ).rows[0].profile,
+      null,
+    );
+  });
+  for (const who of ["outsider", "anon"])
+    await as(who, async () => {
+      const search = (
+        await db.query("select public.search_people('requestSender') as data")
+      ).rows[0].data;
+      assert.equal(search.total, 1);
+      assert.equal(search.people[0].id, ids.requestSender);
+      assert.equal(
+        (
+          await db.query("select public.get_public_profile($1) as profile", [
+            ids.requestSender,
+          ])
+        ).rows[0].profile.id,
+        ids.requestSender,
+      );
+    });
+  await as("requestSender", async () => {
+    assert.equal(
+      (
+        await db.query("select public.get_public_profile($1) as profile", [
+          ids.requestRecipient,
+        ])
+      ).rows[0].profile.id,
+      ids.requestRecipient,
+    );
+    await db.query("select public.block_action($1,'unblock')", [
+      ids.requestRecipient,
+    ]);
+  });
+  await as("requestRecipient", async () => {
+    assert.equal(
+      (await db.query("select public.search_people('requestSender') as data"))
+        .rows[0].data.total,
+      1,
+    );
+    assert.equal(
+      (
+        await db.query("select public.get_public_profile($1) as profile", [
+          ids.requestSender,
+        ])
+      ).rows[0].profile.id,
+      ids.requestSender,
+    );
+  });
+});

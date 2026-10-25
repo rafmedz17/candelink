@@ -51,6 +51,10 @@ export default async function PublicProfilePage({
           )
           .maybeSingle()
       : null;
+  const blockState =
+    user && user.id !== id
+      ? await db.rpc("block_state", { target_user: id })
+      : null;
 
   const avatarUrl = profile.avatar_path
     ? db.storage.from("avatars").getPublicUrl(profile.avatar_path).data
@@ -115,6 +119,11 @@ export default async function PublicProfilePage({
                     status={connection?.data?.status}
                     connectionId={connection?.data?.id}
                     incoming={connection?.data?.recipient_id === user.id}
+                    blocked={
+                      Boolean(blockState?.data?.blocked) ||
+                      Boolean(blockState?.error)
+                    }
+                    blockedByMe={Boolean(blockState?.data?.blocked_by_me)}
                   />
                 )}
               </div>

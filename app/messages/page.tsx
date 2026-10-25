@@ -8,6 +8,7 @@ import {
   MessageComposer,
   MessageThread,
   MessageRequestActions,
+  BlockButton,
 } from "@/components/social-controls";
 import { SocialPeer } from "@/components/social-peer";
 import { ConversationCard } from "@/components/conversation-card";
@@ -45,6 +46,8 @@ export default async function Messages({
   let messages: DirectMessage[] = [];
   let more = false;
   let threadError = false;
+  let blocked = false;
+  let blockedByMe = false;
   if (p.conversation) {
     if (!z.uuid().safeParse(p.conversation).success) threadError = true;
     else {
@@ -65,6 +68,13 @@ export default async function Messages({
         more = Boolean(batch.data?.has_more);
       }
     }
+  }
+  if (selected) {
+    const state = await a.db.rpc("block_state", {
+      target_user: selected.peer.id,
+    });
+    blocked = Boolean(state.error || state.data?.blocked);
+    blockedByMe = Boolean(state.data?.blocked_by_me);
   }
   return (
     <DashboardLayout role={a.profile.role} active="messages">
@@ -169,6 +179,11 @@ export default async function Messages({
                       ← All conversations
                     </Link>
                     <SocialPeer peer={selected.peer} />
+                    <BlockButton
+                      key={`${selected.peer.id}:${blockedByMe}`}
+                      targetId={selected.peer.id}
+                      blockedByMe={blockedByMe}
+                    />
                   </div>
                   <div className="history-controls">
                     {more && messages[0] && (
@@ -196,7 +211,15 @@ export default async function Messages({
                       !p.before && !threadError ? selected.id : undefined
                     }
                   />
+                  {blocked && (
+                    <p className="form-message">
+                      {blockedByMe
+                        ? "You blocked this person. New messages are disabled."
+                        : "New messages are unavailable for this conversation."}
+                    </p>
+                  )}
                   {!p.before &&
+                    !blocked &&
                     (selected.peer.active &&
                     (selected.status === "accepted" ||
                       selected.message_status === "accepted" ||

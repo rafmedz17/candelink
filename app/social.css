@@ -391,3 +391,12 @@
 .message-request-notice p {
   margin-bottom: 12px;
 }
+.block-control {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.block-control .form-message {
+  flex-basis: 100%;
+}
