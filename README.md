@@ -94,6 +94,8 @@ Next.js App Router, TypeScript, Tailwind v4, Lucide, React Hook Form, Zod, Supab
 
 ## Verification
 
+Apply `supabase/migrations/20261025205746_people_default_directory.sql` to browse public profiles at `/people` without a keyword. The directory filters as you type with a 300 ms debounce; clearing the input restores the default list immediately. Results are paginated in groups of 12 and retain the same role, visibility, suspension, self-exclusion, and blocking rules.
+
 Apply `supabase/migrations/20261025203311_public_business_owner_profiles.sql` for public professional profiles belonging to either jobseekers or business owners. Profiles remain private until their owner enables visibility. Business owners can manage their professional details, photo, and visibility in **Business dashboard → Business profile**. The homepage community avatars link to real public accounts; people search and direct profile links honor suspension and blocking rules.
 
 Business profiles display the optional uploaded logo and up to six optional background photos. Multiple photos rotate every five seconds with previous/next and pause controls; reduced-motion preferences stop automatic rotation. Owners manage these in **Business dashboard → Business profile**. Apply `supabase/migrations/20261025194720_business_profile_images.sql` first. JPEG and PNG uploads use the existing public `avatars` bucket, up to 5 MB per photo. Removing a background photo detaches it from that business without deleting a potentially shared Storage object.

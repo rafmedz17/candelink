@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
-import { MapPin, Search, UsersRound } from "lucide-react";
+import { MapPin } from "lucide-react";
+import { PeopleDirectorySearch } from "@/components/people-directory-search";
 import { Header, Footer, PageTitle } from "@/components/site";
 import { supabase } from "@/lib/supabase/server";
 
@@ -27,7 +28,7 @@ export default async function People({
   let people: Person[] = [];
   let total = 0;
   let unavailable = !db;
-  if (db && q.length >= 2) {
+  if (db) {
     const [{ data: auth }, { data, error }] = await Promise.all([
       db.auth.getUser(),
       db.rpc("search_people", {
@@ -58,24 +59,7 @@ export default async function People({
             title="Find people. Make connections."
             description="Search public profiles by name, professional headline, or skills."
           />
-          <form
-            action="/people"
-            className="hero-search page-search"
-            role="search"
-            aria-label="Search public profiles"
-          >
-            <Search size={20} aria-hidden="true" />
-            <input
-              name="q"
-              defaultValue={q}
-              aria-label="Name or skill"
-              placeholder="Search a name or skill"
-              minLength={2}
-              maxLength={100}
-              required
-            />
-            <button className="button">Search profiles</button>
-          </form>
+          <PeopleDirectorySearch query={q} />
           <p className="people-privacy-note">
             Only profiles made public by their owners appear here. Your own
             profile is hidden when you’re logged in.
@@ -85,19 +69,11 @@ export default async function People({
               <h2>People search is currently unavailable</h2>
               <p>Please try again in a moment.</p>
             </div>
-          ) : q.length < 2 ? (
-            <div className="empty-state">
-              <UsersRound size={32} aria-hidden="true" />
-              <h2>Who would you like to find?</h2>
-              <p>
-                Enter at least two characters to search your local community.
-              </p>
-            </div>
           ) : people.length ? (
             <>
               <p className="people-result-count">
-                {total} public {total === 1 ? "profile" : "profiles"} found for
-                “{q}”
+                {total} public {total === 1 ? "profile" : "profiles"}
+                {q ? ` found for "${q}"` : " available"}
               </p>
               <div className="people-grid">
                 {people.map((person) => (

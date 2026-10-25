@@ -2484,3 +2484,68 @@ test("public business owners are discoverable and contactable without exposing p
     );
   });
 });
+
+test("empty people searches browse public accounts and one-character queries filter without bypassing privacy", async () => {
+  const fixtures = (
+    await db.query(
+      "insert into auth.users(id,raw_user_meta_data) select gen_random_uuid(),jsonb_build_object('full_name','Directory Person ' || n) from generate_series(1,15) n returning id",
+    )
+  ).rows.map((row) => row.id);
+  await db.query(
+    "update public.profiles set public_profile=true where id=any($1::uuid[])",
+    [fixtures],
+  );
+  await as("anon", async () => {
+    const all = (await db.query("select public.search_people('',1) as data"))
+      .rows[0].data;
+    assert.ok(all.total > 12);
+    assert.equal(all.people.length, 12);
+    const second = (await db.query("select public.search_people('',2) as data"))
+      .rows[0].data;
+    assert.equal(second.total, all.total);
+    assert.equal(
+      new Set([...all.people, ...second.people].map((p) => p.id)).size,
+      all.people.length + second.people.length,
+    );
+    assert.deepEqual(
+      (await db.query("select public.search_people('   ',1) as data")).rows[0]
+        .data,
+      all,
+    );
+    assert.deepEqual(
+      (await db.query("select public.search_people(null,1) as data")).rows[0]
+        .data,
+      all,
+    );
+    const single = (
+      await db.query("select public.search_people('P',1) as data")
+    ).rows[0].data;
+    assert.ok(single.total > 0);
+    assert.ok(
+      single.people.every((p) =>
+        (p.full_name + " " + p.headline).toLowerCase().includes("p"),
+      ),
+    );
+  });
+  await as("publicSeeker", async () => {
+    const all = (await db.query("select public.search_people('',1) as data"))
+      .rows[0].data;
+    for (let page = 1; page <= Math.ceil(all.total / 12); page++) {
+      const data = (
+        await db.query("select public.search_people('',$1) as data", [page])
+      ).rows[0].data;
+      assert.ok(
+        data.people.every(
+          (p) =>
+            ![
+              ids.publicSeeker,
+              ids.publicOwner,
+              ids.privateOwner,
+              ids.suspendedOwner,
+              ids.hiddenAdmin,
+            ].includes(p.id),
+        ),
+      );
+    }
+  });
+});
