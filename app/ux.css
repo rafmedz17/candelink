@@ -2506,3 +2506,8 @@ td::before {
   margin-bottom: 16px;
   color: var(--muted);
 }
+.delete-user-control {
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}

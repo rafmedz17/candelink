@@ -2114,3 +2114,144 @@ test("blocked accounts cannot search or open their blocker's public profile; unb
     );
   });
 });
+
+test("admin deletion preparation denies self-deletion and non-admin callers", async () => {
+  for (const who of ["anon", "seeker", "owner"])
+    await as(who, () =>
+      assert.rejects(
+        db.query("select public.prepare_user_deletion($1)", [ids.other]),
+      ),
+    );
+  await as("admin", async () => {
+    await assert.rejects(
+      db.query("select public.prepare_user_deletion($1)", [ids.admin]),
+      /own account/,
+    );
+    await assert.rejects(db.query("select public.prepare_user_deletion(null)"));
+    await assert.rejects(
+      db.query("select public.prepare_user_deletion(gen_random_uuid())"),
+      /not found/,
+    );
+  });
+  assert.equal(
+    (
+      await db.query("select suspended from public.profiles where id=$1", [
+        ids.admin,
+      ])
+    ).rows[0].suspended,
+    false,
+  );
+  // The database trigger also rejects a privileged direct profile self-delete.
+  await assert.rejects(
+    db.query("delete from public.profiles where id=$1", [ids.admin]),
+    /own account/,
+  );
+});
+
+test("Auth deletion can remove a prepared user while preserving authored audit and review records", async () => {
+  ids.deleteTarget = "d0000000-0000-4000-8000-000000000001";
+  await db.query(
+    'insert into auth.users(id,raw_user_meta_data) values($1,\'{"full_name":"Deletion test"}\')',
+    [ids.deleteTarget],
+  );
+  const ownedBusiness = (
+    await db.query(
+      "insert into public.businesses(name,description,category,address) values('Deletion Business','A business for deletion tests','Services','Candelaria') returning id",
+    )
+  ).rows[0].id;
+  await db.query(
+    "insert into public.business_members(business_id,user_id) values($1,$2)",
+    [ownedBusiness, ids.deleteTarget],
+  );
+  const review = (
+    await db.query(
+      "insert into public.business_verification_requests(business_id,requested_by) values($1,$2) returning id",
+      [ownedBusiness, ids.deleteTarget],
+    )
+  ).rows[0].id;
+  const report = (
+    await db.query(
+      "insert into public.reports(reporter_id,subject_type,subject_id,reason) values($1,'user',$2,'Report for account deletion test') returning id",
+      [ids.deleteTarget, ids.other],
+    )
+  ).rows[0].id;
+  const oldAudit = (
+    await db.query(
+      "insert into public.audit_logs(actor_id,action,target_type,target_id,reason) values($1,'restore','user',$2,'Previous administrative action') returning id",
+      [ids.deleteTarget, ids.other],
+    )
+  ).rows[0].id;
+  await db.query(
+    "update public.applicant_notes set author_id=$1 where application_id=$2",
+    [ids.deleteTarget, application],
+  );
+  await as("admin", () =>
+    db.query("select public.prepare_user_deletion($1)", [ids.deleteTarget]),
+  );
+  assert.equal(
+    (
+      await db.query("select suspended from public.profiles where id=$1", [
+        ids.deleteTarget,
+      ])
+    ).rows[0].suspended,
+    true,
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select count(*) as count from public.audit_logs where target_id=$1 and action='delete_requested'",
+        [ids.deleteTarget],
+      )
+    ).rows[0].count,
+    1,
+  );
+  // Supabase's Auth Admin API deletes auth.users; exercise its FK cascades here.
+  await db.query("delete from auth.users where id=$1", [ids.deleteTarget]);
+  assert.equal(
+    (
+      await db.query("select id from public.profiles where id=$1", [
+        ids.deleteTarget,
+      ])
+    ).rows.length,
+    0,
+  );
+  assert.equal(
+    (
+      await db.query("select actor_id from public.audit_logs where id=$1", [
+        oldAudit,
+      ])
+    ).rows[0].actor_id,
+    null,
+  );
+  assert.equal(
+    (
+      await db.query("select reporter_id from public.reports where id=$1", [
+        report,
+      ])
+    ).rows[0].reporter_id,
+    null,
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select requested_by from public.business_verification_requests where id=$1",
+        [review],
+      )
+    ).rows[0].requested_by,
+    null,
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select author_id from public.applicant_notes where application_id=$1",
+        [application],
+      )
+    ).rows[0].author_id,
+    null,
+  );
+  assert.equal(
+    (await db.query("select id from public.profiles where id=$1", [ids.admin]))
+      .rows.length,
+    1,
+  );
+});

@@ -4,6 +4,7 @@ import { requireAccount } from "@/lib/access";
 import { DashboardLayout, SetupNeeded, Stats } from "@/components/dashboard";
 import { PageTitle } from "@/components/site";
 import { ActionForm, PhotoUpload } from "@/components/forms";
+import { DeleteUserButton } from "@/components/delete-user-button";
 export default async function Admin({
   searchParams,
 }: {
@@ -289,6 +290,13 @@ export default async function Admin({
                 ]}
                 submit="Update account"
               />
+              {u.id === a.user.id ? (
+                <p className="form-message">
+                  Your current account cannot be deleted.
+                </p>
+              ) : (
+                <DeleteUserButton userId={u.id} name={u.full_name} />
+              )}
             </details>
           ))}
           {!filteredUsers.length && (
