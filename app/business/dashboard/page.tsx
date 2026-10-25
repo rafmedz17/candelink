@@ -9,6 +9,7 @@ import {
   QuickAction,
   CvButton,
   PhotoUpload,
+  ProfileVisibility,
 } from "@/components/forms";
 
 const terminalApplicationStatuses = new Set([
@@ -196,6 +197,62 @@ export default async function BusinessDashboard({
             businessId={b.id}
             paths={b.cover_paths || []}
           />
+        </>
+      )}
+      {tab === "profile" && (
+        <>
+          <ProfileVisibility
+            profileId={a.user.id}
+            isPublic={Boolean(a.profile.public_profile)}
+          />
+          <details className="panel">
+            <summary>Your professional profile</summary>
+            <PhotoUpload path={a.profile.avatar_path} />
+            <ActionForm
+              kind="profile"
+              fields={[
+                {
+                  name: "full_name",
+                  label: "Full name",
+                  value: a.profile.full_name,
+                  required: true,
+                },
+                {
+                  name: "headline",
+                  label: "Professional headline",
+                  value: a.profile.headline,
+                },
+                {
+                  name: "location",
+                  label: "Location",
+                  value: a.profile.location,
+                },
+                {
+                  name: "introduction",
+                  label: "A little about you",
+                  type: "textarea",
+                  value: a.profile.introduction,
+                },
+                {
+                  name: "skills",
+                  label: "Skills (comma separated)",
+                  value: a.profile.skills,
+                },
+                {
+                  name: "education",
+                  label: "Education",
+                  type: "textarea",
+                  value: a.profile.education,
+                },
+                {
+                  name: "experience",
+                  label: "Work experience",
+                  type: "textarea",
+                  value: a.profile.experience,
+                },
+              ]}
+            />
+          </details>
         </>
       )}
       {(tab === "profile" || !b) && (

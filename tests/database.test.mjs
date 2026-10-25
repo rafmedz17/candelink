@@ -2375,3 +2375,112 @@ test("business logos and background photos are optional, member-owned, bounded, 
     [],
   );
 });
+
+test("public business owners are discoverable and contactable without exposing private or blocked profiles", async () => {
+  const fixtures = [
+    ["publicOwner", "Public Owner Alpha", "business_owner", true, false],
+    ["publicSeeker", "Public Seeker Alpha", "jobseeker", true, false],
+    ["privateOwner", "Private Owner Alpha", "business_owner", false, false],
+    ["suspendedOwner", "Suspended Owner Alpha", "business_owner", true, true],
+    ["hiddenAdmin", "Admin Alpha", "admin", true, false],
+  ];
+  for (const [i, [key, name, role, visible, suspended]] of fixtures.entries()) {
+    ids[key] = `f0000000-0000-4000-8000-00000000000${i + 1}`;
+    await db.query(
+      "insert into auth.users(id,raw_user_meta_data) values($1,$2)",
+      [ids[key], JSON.stringify({ full_name: name, account_type: role })],
+    );
+    await db.query(
+      "update public.profiles set role=$2,public_profile=$3,suspended=$4,created_at='2100-01-01' where id=$1",
+      [ids[key], role, visible, suspended],
+    );
+  }
+  await as("anon", async () => {
+    const result = (
+      await db.query(
+        "select public.search_people('Public Owner Alpha') as data",
+      )
+    ).rows[0].data;
+    assert.equal(result.total, 1);
+    assert.equal(result.people[0].id, ids.publicOwner);
+    const profile = (
+      await db.query("select public.get_public_profile($1) as data", [
+        ids.publicOwner,
+      ])
+    ).rows[0].data;
+    assert.equal(profile.role, "business_owner");
+    assert.equal(profile.cv_path, undefined);
+    const community = (
+      await db.query("select public.community_profiles() as data")
+    ).rows[0].data;
+    assert.ok(community.some((p) => p.id === ids.publicOwner));
+    assert.ok(community.some((p) => p.id === ids.publicSeeker));
+    assert.ok(community.length <= 3);
+    for (const key of ["privateOwner", "suspendedOwner", "hiddenAdmin"]) {
+      assert.equal(
+        (
+          await db.query("select public.get_public_profile($1) as data", [
+            ids[key],
+          ])
+        ).rows[0].data,
+        null,
+      );
+      assert.ok(!community.some((p) => p.id === ids[key]));
+    }
+  });
+  await as("publicSeeker", async () => {
+    const connection = (
+      await db.query("select public.friend_action($1,'request') as id", [
+        ids.publicOwner,
+      ])
+    ).rows[0].id;
+    assert.equal(
+      (
+        await db.query("select public.connection_details($1) as data", [
+          connection,
+        ])
+      ).rows[0].data.peer.public_profile,
+      true,
+    );
+  });
+  await as("requestSender", async () => {
+    const connection = (
+      await db.query("select public.start_message_request($1) as id", [
+        ids.publicOwner,
+      ])
+    ).rows[0].id;
+    await db.query(
+      "select public.send_direct_message($1,gen_random_uuid(),'Hello business owner')",
+      [connection],
+    );
+  });
+  await as("publicOwner", () =>
+    db.query("select public.block_action($1,'block')", [ids.publicSeeker]),
+  );
+  await as("publicSeeker", async () => {
+    assert.equal(
+      (
+        await db.query(
+          "select public.search_people('Public Owner Alpha') as data",
+        )
+      ).rows[0].data.total,
+      0,
+    );
+    assert.equal(
+      (
+        await db.query("select public.get_public_profile($1) as data", [
+          ids.publicOwner,
+        ])
+      ).rows[0].data,
+      null,
+    );
+    const community = (
+      await db.query("select public.community_profiles() as data")
+    ).rows[0].data;
+    assert.ok(
+      !community.some(
+        (p) => p.id === ids.publicOwner || p.id === ids.publicSeeker,
+      ),
+    );
+  });
+});

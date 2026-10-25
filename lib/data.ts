@@ -1,12 +1,20 @@
 import { supabase } from "./supabase/server";
 import { sampleJobs, type Job } from "./sample";
 import { samples } from "./business-samples";
+export async function communityProfiles(): Promise<
+  { id: string; full_name: string; avatar_path: string | null; role: string }[]
+> {
+  const db = await supabase();
+  if (!db) return [];
+  const { data, error } = await db.rpc("community_profiles");
+  return error || !Array.isArray(data) ? [] : data;
+}
 export async function featuredBusinesses() {
   const db = await supabase();
   if (!db) return samples;
   const { data, error } = await db
     .from("businesses")
-    .select("id,name,category,address,description")
+    .select("id,name,category,address,description,logo_path,cover_paths")
     .eq("verification_status", "verified")
     .order("created_at", { ascending: false })
     .limit(3);

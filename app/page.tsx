@@ -18,11 +18,12 @@ import {
   HeartHandshake,
 } from "lucide-react";
 import { Header, Footer, JobCard } from "@/components/site";
-import { getJobs, featuredBusinesses } from "@/lib/data";
+import { getJobs, featuredBusinesses, communityProfiles } from "@/lib/data";
 
 export default async function Home() {
   const { jobs, demo } = await getJobs();
   const businesses = await featuredBusinesses();
+  const people = await communityProfiles();
   return (
     <>
       <Header />
@@ -68,41 +69,38 @@ export default async function Home() {
                 <MapPin size={16} aria-hidden="true" /> Explore nearby
                 opportunities on the map ↗
               </Link>
-              <div className="popular">
-                <span>Popular searches:</span>
-                {["Administrative", "Sales", "Fresh graduate"].map((t) => (
-                  <Link key={t} href={`/jobs?q=${encodeURIComponent(t)}`}>
-                    {t}
-                  </Link>
-                ))}
-              </div>
               <div className="hero-foot">
-                <span className="mini-avatars">
-                  <Image
-                    width={1000}
-                    height={800}
-                    sizes="(max-width: 600px) 100vw, 40vw"
-                    src="/images/avatar-1.jpg"
-                    alt=""
-                  />
-                  <Image
-                    width={1000}
-                    height={800}
-                    sizes="(max-width: 600px) 100vw, 40vw"
-                    src="/images/avatar-2.jpg"
-                    alt=""
-                  />
-                  <Image
-                    width={1000}
-                    height={800}
-                    sizes="(max-width: 600px) 100vw, 40vw"
-                    src="/images/avatar-3.jpg"
-                    alt=""
-                  />
-                  <span>
-                    <Users size={15} />
-                  </span>
-                </span>
+                <div className="mini-avatars">
+                  {people.map((person) => (
+                    <Link
+                      className="community-avatar"
+                      key={person.id}
+                      href={`/profiles/${person.id}`}
+                      aria-label={`View ${person.full_name || "community member"}'s public profile`}
+                    >
+                      {person.avatar_path ? (
+                        <Image
+                          src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/avatars/${person.avatar_path}`}
+                          alt=""
+                          width={40}
+                          height={40}
+                          unoptimized
+                        />
+                      ) : (
+                        <span aria-hidden="true">
+                          {(person.full_name || "C").slice(0, 1).toUpperCase()}
+                        </span>
+                      )}
+                    </Link>
+                  ))}
+                  <Link
+                    className="community-avatar community-people-link"
+                    href="/people"
+                    aria-label="Find public profiles"
+                  >
+                    <Users size={16} aria-hidden="true" />
+                  </Link>
+                </div>
                 <p>
                   A community built for <strong>people like you.</strong>
                 </p>
@@ -237,6 +235,14 @@ export default async function Home() {
                 .map((b, i) => ({
                   ...b,
                   image: ["cafe.jpg", "studio.jpg", "local.jpg"][i % 3],
+                  logo:
+                    "logo_path" in b && typeof b.logo_path === "string"
+                      ? b.logo_path
+                      : null,
+                  cover:
+                    "cover_paths" in b && Array.isArray(b.cover_paths)
+                      ? b.cover_paths[0]
+                      : null,
                   icon: [Coffee, Monitor, ShoppingBag][i % 3],
                 }))
                 .map((b, i) => (
@@ -249,12 +255,29 @@ export default async function Home() {
                       width={1000}
                       height={800}
                       sizes="(max-width: 600px) 100vw, 40vw"
-                      src={`/images/${b.image}`}
+                      src={
+                        b.cover
+                          ? `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/avatars/${b.cover}`
+                          : `/images/${b.image}`
+                      }
+                      unoptimized={Boolean(b.cover)}
                       alt={`${b.category} workspace`}
                     />
                     <div>
-                      <span className={`company-logo color-${i}`}>
-                        <b.icon size={23} />
+                      <span
+                        className={`company-logo color-${i} ${b.logo ? "uploaded-business-logo" : ""}`}
+                      >
+                        {b.logo ? (
+                          <Image
+                            src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/avatars/${b.logo}`}
+                            alt={`${b.name} logo`}
+                            width={44}
+                            height={44}
+                            unoptimized
+                          />
+                        ) : (
+                          <b.icon size={23} />
+                        )}
                       </span>
                       <span>
                         <strong>{b.name}</strong>

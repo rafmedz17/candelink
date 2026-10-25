@@ -61,9 +61,19 @@ export async function Header() {
         : "/dashboard?tab=profile";
   const profileLabel =
     profile?.role === "business_owner" ? "Business profile" : "My profile";
-  const avatarUrl = profile?.avatar_path
-    ? db!.storage.from("avatars").getPublicUrl(profile.avatar_path).data
-        .publicUrl
+  const { data: business } =
+    user && profile?.role === "business_owner"
+      ? await db!
+          .from("businesses")
+          .select("logo_path,business_members!inner(user_id)")
+          .eq("business_members.user_id", user.id)
+          .order("created_at", { ascending: true })
+          .limit(1)
+          .maybeSingle()
+      : { data: null };
+  const avatarPath = business?.logo_path || profile?.avatar_path;
+  const avatarUrl = avatarPath
+    ? db!.storage.from("avatars").getPublicUrl(avatarPath).data.publicUrl
     : null;
   return (
     <header className="site-header">
@@ -73,7 +83,7 @@ export async function Header() {
           <Link href="/jobs">Find a job</Link>
           <Link href="/businesses">Local businesses</Link>
           <Link href="/maps">Map</Link>
-          <Link href="/#how-it-works">How it works</Link>
+          <Link href="/about">About</Link>
         </nav>
         <PeopleSearch currentUserId={user?.id} />
         <div className="nav-actions">
@@ -87,7 +97,7 @@ export async function Header() {
               <Link href="/jobs">Find a job</Link>
               <Link href="/businesses">Local businesses</Link>
               <Link href="/maps">Opportunity map</Link>
-              <Link href="/#how-it-works">How it works</Link>
+              <Link href="/about">About</Link>
               <Link href="/login">Log in</Link>
               <Link href="/register">Sign up</Link>
             </NavigationMenu>
@@ -138,7 +148,7 @@ export async function Header() {
                 <Link href="/jobs">Find a job</Link>
                 <Link href="/businesses">Local businesses</Link>
                 <Link href="/maps">Opportunity map</Link>
-                <Link href="/#how-it-works">How it works</Link>
+                <Link href="/about">About</Link>
               </div>
               <form action={logout}>
                 <button type="submit">
@@ -186,11 +196,11 @@ export function Footer() {
           <strong>Grow your business</strong>
           <Link href="/register?role=business_owner">Start hiring</Link>
           <Link href="/business/dashboard">Employer dashboard</Link>
-          <Link href="/#how-it-works">How it works</Link>
+          <Link href="/about">About</Link>
         </div>
         <div>
           <strong>Let’s stay connected</strong>
-          <p>Built with care for our community.</p>
+          <p>Developed by Rafael Vincent D. Medina.</p>
           <a href="mailto:hello@candelink.example">
             Contact the team <ArrowUpRight size={14} />
           </a>

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { Store, ArrowUpRight, MapPin, Search } from "lucide-react";
 import { Header, Footer, PageTitle } from "@/components/site";
 import { samples } from "@/lib/business-samples";
@@ -13,7 +14,7 @@ export default async function Businesses({
   const { data, error } = db
     ? await db
         .from("businesses")
-        .select("id,name,category,address,description")
+        .select("id,name,category,address,description,logo_path,cover_paths")
         .eq("verification_status", "verified")
         .order("name")
     : { data: samples, error: null };
@@ -42,28 +43,66 @@ export default async function Businesses({
             <button className="button">Find businesses</button>
           </form>
           <div className="jobs-grid">
-            {businesses.map((b, i) => (
-              <Link
-                href={`/businesses/${b.id}`}
-                key={b.id}
-                className="panel business-directory-card"
-              >
-                <span className={`company-logo color-${i}`}>
-                  <Store size={23} />
-                </span>
-                <h2>{b.name}</h2>
-                <div className="tags">
-                  <span>{b.category}</span>
-                </div>
-                <span className="business-location">
-                  <MapPin size={15} aria-hidden="true" /> {b.address}
-                </span>
-                <p>{b.description}</p>
-                <span className="text-link">
-                  Meet the business <ArrowUpRight size={16} />
-                </span>
-              </Link>
-            ))}
+            {businesses.map((b, i) => {
+              const logo =
+                "logo_path" in b && typeof b.logo_path === "string"
+                  ? b.logo_path
+                  : null;
+              const cover =
+                "cover_paths" in b && Array.isArray(b.cover_paths)
+                  ? b.cover_paths[0]
+                  : null;
+              const photoUrl = (path: string) =>
+                `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/avatars/${path}`;
+              return (
+                <Link
+                  href={`/businesses/${b.id}`}
+                  key={b.id}
+                  className={`panel business-directory-card ${cover ? "has-background" : ""}`}
+                >
+                  {cover && (
+                    <span
+                      className="business-directory-cover"
+                      aria-hidden="true"
+                    >
+                      <Image
+                        src={photoUrl(cover)}
+                        alt=""
+                        fill
+                        unoptimized
+                        sizes="(max-width: 600px) 100vw, 33vw"
+                      />
+                    </span>
+                  )}
+                  <span
+                    className={`company-logo color-${i} ${logo ? "business-directory-logo" : ""}`}
+                  >
+                    {logo ? (
+                      <Image
+                        src={photoUrl(logo)}
+                        alt={`${b.name} logo`}
+                        width={56}
+                        height={56}
+                        unoptimized
+                      />
+                    ) : (
+                      <Store size={23} />
+                    )}
+                  </span>
+                  <h2>{b.name}</h2>
+                  <div className="tags">
+                    <span>{b.category}</span>
+                  </div>
+                  <span className="business-location">
+                    <MapPin size={15} aria-hidden="true" /> {b.address}
+                  </span>
+                  <p>{b.description}</p>
+                  <span className="text-link">
+                    Meet the business <ArrowUpRight size={16} />
+                  </span>
+                </Link>
+              );
+            })}
           </div>
           {!businesses.length && (
             <div className="empty-state">

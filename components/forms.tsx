@@ -126,7 +126,7 @@ export function PhotoUpload({
           height={80}
           unoptimized
           style={{
-            borderRadius: businessId ? 12 : "50%",
+            borderRadius: "50%",
             marginBottom: 20,
             objectFit: "cover",
           }}

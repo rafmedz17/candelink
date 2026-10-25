@@ -8,6 +8,7 @@ import { FriendActions } from "@/components/social-controls";
 
 type PublicProfile = {
   id: string;
+  role?: string;
   full_name: string;
   headline: string;
   location: string;
@@ -93,6 +94,11 @@ export default async function PublicProfilePage({
               </div>
               <div className="public-profile-heading">
                 <h1>{profile.full_name}</h1>
+                <span className="badge">
+                  {profile.role === "business_owner"
+                    ? "Business owner"
+                    : "Jobseeker"}
+                </span>
                 {profile.headline && <p>{profile.headline}</p>}
                 {profile.location && (
                   <span>

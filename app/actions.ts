@@ -164,8 +164,11 @@ async function runMutation(
     if (!v.success) return { ok: false, message: v.error.issues[0].message };
     ({ error } = await db.from("profiles").update(v.data).eq("id", user.id));
   } else if (kind === "profile-visibility") {
-    if (account.role !== "jobseeker")
-      return { ok: false, message: "Only jobseeker profiles can be public." };
+    if (!["jobseeker", "business_owner"].includes(account.role))
+      return {
+        ok: false,
+        message: "Only jobseeker and business-owner profiles can be public.",
+      };
     const v = z.boolean().safeParse(values.public_profile);
     if (!v.success)
       return { ok: false, message: "Invalid profile visibility setting." };
