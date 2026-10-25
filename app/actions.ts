@@ -293,14 +293,14 @@ async function runMutation(
         id: z.uuid(),
         target: z.enum(["business", "user", "job", "report"]),
         decision: z.string().max(40),
-        reason: z.string().min(10).max(2000),
+        reason: z.string().trim().max(2000).optional().default(""),
       })
       .safeParse(values);
     if (!v.success)
       return {
         ok: false,
         message:
-          "A record, decision, and reason of at least 10 characters are required.",
+          "Provide a valid record and decision, with an optional reason of up to 2,000 characters.",
       };
     ({ error } = await db.rpc("moderate", {
       target_id: v.data.id,

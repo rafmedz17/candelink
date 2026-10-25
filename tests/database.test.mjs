@@ -1813,3 +1813,37 @@ test("unread helper repair restores the inbox and can be repeated without losing
     ),
   );
 });
+
+test("moderation reasons are optional while admin authorization and auditing remain required", async () => {
+  await as("seeker", () =>
+    assert.rejects(
+      db.query("select public.moderate($1,'user','suspend',null)", [ids.other]),
+    ),
+  );
+  await as("admin", async () => {
+    for (const reason of [null, "", "   ", "OK"]) {
+      await db.query("select public.moderate($1,'user','suspend',$2)", [
+        ids.other,
+        reason,
+      ]);
+      const audit = (
+        await db.query(
+          "select reason from public.audit_logs where target_id=$1 and action='suspend' order by created_at desc limit 1",
+          [ids.other],
+        )
+      ).rows[0];
+      assert.equal(audit.reason, (reason || "").trim());
+      await db.query("select public.moderate($1,'user','restore','')", [
+        ids.other,
+      ]);
+    }
+    await assert.rejects(
+      db.query("select public.moderate($1,'user','suspend',repeat('a',2001))", [
+        ids.other,
+      ]),
+    );
+    await assert.rejects(
+      db.query("select public.moderate($1,'user','suspend','')", [ids.admin]),
+    );
+  });
+});

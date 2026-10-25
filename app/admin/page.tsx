@@ -36,7 +36,17 @@ export default async function Admin({
     .from("business_verification_requests")
     .select("*,businesses(name)")
     .eq("status", "pending");
-  const q = p.q?.toLowerCase() || "";
+  const q = p.q?.trim().toLowerCase() || "";
+  const role = ["jobseeker", "business_owner", "admin"].includes(p.role)
+    ? p.role
+    : "";
+  const status = ["active", "suspended"].includes(p.status) ? p.status : "";
+  const filteredUsers = (users || []).filter(
+    (u) =>
+      `${u.full_name} ${u.role}`.toLowerCase().includes(q) &&
+      (!role || u.role === role) &&
+      (!status || u.suspended === (status === "suspended")),
+  );
   const filteredBusinesses = (businesses || []).filter((b) =>
     `${b.name} ${b.verification_status}`.toLowerCase().includes(q),
   );
@@ -113,7 +123,47 @@ export default async function Admin({
           </div>
         </>
       )}
-      {tab !== "profile" && (
+      {tab === "users" && (
+        <form
+          action="/admin"
+          className="panel admin-user-filters"
+          aria-label="Filter users"
+        >
+          <input type="hidden" name="tab" value="users" />
+          <label>
+            Search users
+            <input name="q" defaultValue={p.q} placeholder="Name or role" />
+          </label>
+          <label>
+            Role
+            <select name="role" defaultValue={role}>
+              <option value="">All roles</option>
+              <option value="jobseeker">Jobseeker</option>
+              <option value="business_owner">Business owner</option>
+              <option value="admin">Admin</option>
+            </select>
+          </label>
+          <label>
+            Account status
+            <select name="status" defaultValue={status}>
+              <option value="">All statuses</option>
+              <option value="active">Active</option>
+              <option value="suspended">Suspended</option>
+            </select>
+          </label>
+          <div className="admin-user-filter-actions">
+            <button className="button" type="submit">
+              Apply filters
+            </button>
+            {(q || role || status) && (
+              <Link className="text-link" href="/admin?tab=users">
+                Clear filters
+              </Link>
+            )}
+          </div>
+        </form>
+      )}
+      {tab !== "profile" && tab !== "users" && (
         <form
           className="hero-search page-search"
           style={{ width: "100%", marginTop: 0, marginBottom: 25 }}
@@ -187,9 +237,8 @@ export default async function Admin({
                   },
                   {
                     name: "reason",
-                    label: "Recorded reason (at least 10 characters)",
+                    label: "Recorded reason (optional)",
                     type: "textarea",
-                    required: true,
                   },
                 ]}
                 submit="Record decision"
@@ -204,10 +253,13 @@ export default async function Admin({
           )}
         </>
       )}
-      {tab === "users" &&
-        users
-          ?.filter((u) => `${u.full_name} ${u.role}`.toLowerCase().includes(q))
-          .map((u) => (
+      {tab === "users" && (
+        <>
+          <p className="admin-user-result-count" role="status">
+            {filteredUsers.length} matching{" "}
+            {filteredUsers.length === 1 ? "user" : "users"}
+          </p>
+          {filteredUsers.map((u) => (
             <details className="panel" key={u.id}>
               <summary className="review-summary">
                 <span>
@@ -231,15 +283,25 @@ export default async function Admin({
                   },
                   {
                     name: "reason",
-                    label: "Recorded reason",
+                    label: "Recorded reason (optional)",
                     type: "textarea",
-                    required: true,
                   },
                 ]}
                 submit="Update account"
               />
             </details>
           ))}
+          {!filteredUsers.length && (
+            <div className="empty-state">
+              <h2>No matching users</h2>
+              <p>Try another name, role, or account status.</p>
+              <Link className="button outline" href="/admin?tab=users">
+                Clear filters
+              </Link>
+            </div>
+          )}
+        </>
+      )}
       {tab === "jobs" &&
         jobs
           ?.filter((j) => j.title.toLowerCase().includes(q))
@@ -264,9 +326,8 @@ export default async function Admin({
                   },
                   {
                     name: "reason",
-                    label: "Recorded reason",
+                    label: "Recorded reason (optional)",
                     type: "textarea",
-                    required: true,
                   },
                 ]}
                 submit="Unpublish job"
@@ -301,9 +362,8 @@ export default async function Admin({
                     },
                     {
                       name: "reason",
-                      label: "Recorded reason",
+                      label: "Recorded reason (optional)",
                       type: "textarea",
-                      required: true,
                     },
                   ]}
                   submit="Resolve report"
@@ -340,7 +400,9 @@ export default async function Admin({
                       <td data-label="Target">
                         {l.target_type} · {l.target_id}
                       </td>
-                      <td data-label="Reason">{l.reason}</td>
+                      <td data-label="Reason">
+                        {l.reason || "No reason provided"}
+                      </td>
                     </tr>
                   ))}
               </tbody>

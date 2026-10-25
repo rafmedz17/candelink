@@ -2470,3 +2470,39 @@ td::before {
   background: #412a28;
   border-color: #734944;
 }
+.admin-user-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 16px;
+}
+.admin-user-filters label {
+  display: grid;
+  gap: 8px;
+  flex: 1 1 160px;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+.admin-user-filters input,
+.admin-user-filters select {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-soft);
+  color: var(--ink);
+  font-size: 16px;
+}
+.admin-user-filter-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.admin-user-result-count {
+  margin-bottom: 16px;
+  color: var(--muted);
+}
