@@ -5,6 +5,10 @@ export const credentials = z.object({
   name: z.string().max(100).optional(),
   role: z.enum(["jobseeker", "business_owner"]).optional(),
 });
+// Existing accounts may predate the current password creation policy.
+export const loginCredentials = credentials.extend({
+  password: z.string().min(1, "Enter your password.").max(128),
+});
 export const profileSchema = z.object({
   full_name: z.string().min(2).max(100),
   headline: z.string().max(150),

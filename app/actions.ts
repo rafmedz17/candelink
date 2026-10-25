@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabase/server";
 import {
   businessSchema,
   credentials,
+  loginCredentials,
   jobSchema,
   profileSchema,
   statuses,
@@ -60,7 +61,9 @@ async function runAuth(
       url: error ? undefined : "/dashboard",
     };
   }
-  const parsed = credentials.safeParse(values);
+  const parsed = (mode === "login" ? loginCredentials : credentials).safeParse(
+    values,
+  );
   if (!parsed.success)
     return { ok: false, message: parsed.error.issues[0].message };
   const { email, password, name, role } = parsed.data;

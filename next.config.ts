@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Allow the LAN hostname used to test the app on a phone.
+  allowedDevOrigins: ["192.168.1.14"],
   experimental: {
     agentFeedback: true,
     serverActions: { bodySizeLimit: "6mb" },
