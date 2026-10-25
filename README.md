@@ -94,6 +94,8 @@ Next.js App Router, TypeScript, Tailwind v4, Lucide, React Hook Form, Zod, Supab
 
 ## Verification
 
+Business profiles display the optional uploaded logo and up to six optional background photos. Multiple photos rotate every five seconds with previous/next and pause controls; reduced-motion preferences stop automatic rotation. Owners manage these in **Business dashboard → Business profile**. Apply `supabase/migrations/20261025194720_business_profile_images.sql` first. JPEG and PNG uploads use the existing public `avatars` bucket, up to 5 MB per photo. Removing a background photo detaches it from that business without deleting a potentially shared Storage object.
+
 Admin **User management** supports permanent deletion of other accounts after typing `DELETE`. The signed-in admin cannot delete their own account; the server and database preparation also enforce this. Apply `supabase/migrations/20261025180134_admin_user_deletion.sql`, set the server-only `SUPABASE_SECRET_KEY` in `.env.local` or your hosting environment, and restart the server. The action disables the target first, removes their files through the Storage API, and deletes their Auth account; profile-owned records cascade while authored audit/review records retain anonymous references. Jobs belonging to businesses with no remaining active member are closed. If cleanup fails, the account stays disabled and the admin can retry deletion.
 
 ```sh

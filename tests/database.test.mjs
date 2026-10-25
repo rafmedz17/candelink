@@ -2255,3 +2255,123 @@ test("Auth deletion can remove a prepared user while preserving authored audit a
     1,
   );
 });
+
+test("business logos and background photos are optional, member-owned, bounded, and removable", async () => {
+  ids.photoOwner = "e0000000-0000-4000-8000-000000000001";
+  await db.query(
+    'insert into auth.users(id,raw_user_meta_data) values($1,\'{"full_name":"Photo owner","account_type":"business_owner"}\')',
+    [ids.photoOwner],
+  );
+  const photoBusiness = (
+    await db.query(
+      "insert into public.businesses(name,description,category,address) values('Photo business','A business with optional images','Retail','Candelaria') returning id",
+    )
+  ).rows[0].id;
+  await db.query(
+    "insert into public.business_members(business_id,user_id) values($1,$2)",
+    [photoBusiness, ids.photoOwner],
+  );
+  const initial = (
+    await db.query(
+      "select logo_path,cover_paths from public.businesses where id=$1",
+      [photoBusiness],
+    )
+  ).rows[0];
+  assert.equal(initial.logo_path, null);
+  assert.deepEqual(initial.cover_paths, []);
+  const paths = Array.from(
+    { length: 7 },
+    (_, i) => `${ids.photoOwner}/cover-${i}.jpg`,
+  );
+  for (const path of paths)
+    await db.query(
+      "insert into storage.objects(bucket_id,name) values('avatars',$1)",
+      [path],
+    );
+  for (const who of ["anon", "outsider"])
+    await as(who, () =>
+      assert.rejects(
+        db.query("select public.business_photo($1,$2,false)", [
+          photoBusiness,
+          paths[0],
+        ]),
+      ),
+    );
+  await as("photoOwner", async () => {
+    await assert.rejects(
+      db.query("select public.business_photo($1,$2,false)", [
+        photoBusiness,
+        `${ids.other}/image.jpg`,
+      ]),
+    );
+    await assert.rejects(
+      db.query("select public.business_photo($1,$2,false)", [
+        photoBusiness,
+        `${ids.photoOwner}/missing.jpg`,
+      ]),
+    );
+    for (const path of paths.slice(0, 6))
+      await db.query("select public.business_photo($1,$2,false)", [
+        photoBusiness,
+        path,
+      ]);
+    await db.query("select public.business_photo($1,$2,false)", [
+      photoBusiness,
+      paths[0],
+    ]);
+    await assert.rejects(
+      db.query("select public.business_photo($1,$2,false)", [
+        photoBusiness,
+        paths[6],
+      ]),
+    );
+    await db.query("select public.set_business_logo($1,$2)", [
+      photoBusiness,
+      paths[0],
+    ]);
+    await db.query("select public.set_business_logo($1,null)", [photoBusiness]);
+    await assert.rejects(
+      db.query("update public.businesses set cover_paths='{}' where id=$1", [
+        photoBusiness,
+      ]),
+    );
+  });
+  assert.equal(
+    (
+      await db.query(
+        "select cardinality(cover_paths) as count from public.businesses where id=$1",
+        [photoBusiness],
+      )
+    ).rows[0].count,
+    6,
+  );
+  await db.query("update public.profiles set suspended=true where id=$1", [
+    ids.photoOwner,
+  ]);
+  await as("photoOwner", () =>
+    assert.rejects(
+      db.query("select public.business_photo($1,$2,true)", [
+        photoBusiness,
+        paths[0],
+      ]),
+    ),
+  );
+  await db.query("update public.profiles set suspended=false where id=$1", [
+    ids.photoOwner,
+  ]);
+  await as("photoOwner", async () => {
+    for (const path of paths.slice(0, 6))
+      await db.query("select public.business_photo($1,$2,true)", [
+        photoBusiness,
+        path,
+      ]);
+  });
+  assert.deepEqual(
+    (
+      await db.query("select cover_paths from public.businesses where id=$1", [
+        photoBusiness,
+      ])
+    ).rows[0].cover_paths,
+    [],
+  );
+});

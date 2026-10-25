@@ -234,7 +234,8 @@ export default async function Admin({
                   {
                     name: "decision",
                     label: "Decision",
-                    options: ["verified", "rejected", "suspended", "pending"],
+                    options: ["pending", "verified", "rejected", "suspended"],
+                    value: "pending",
                   },
                   {
                     name: "reason",

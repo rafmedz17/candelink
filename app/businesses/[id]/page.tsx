@@ -1,6 +1,7 @@
+import { BusinessProfileHero } from "@/components/business-profile-hero";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Header, Footer, PageTitle, JobCard } from "@/components/site";
+import { Header, Footer, JobCard } from "@/components/site";
 import { ActionForm } from "@/components/forms";
 import { samples } from "@/lib/business-samples";
 import { supabase } from "@/lib/supabase/server";
@@ -15,7 +16,9 @@ export default async function BusinessDetail({
   const { data: b } = db
     ? await db
         .from("businesses")
-        .select("id,name,category,address,description,operating_details")
+        .select(
+          "id,name,category,address,description,operating_details,logo_path,cover_paths",
+        )
         .eq("id", id)
         .eq("verification_status", "verified")
         .single()
@@ -30,10 +33,20 @@ export default async function BusinessDetail({
       <Header />
       <main id="main-content" className="page-bg business-detail-page">
         <div className="container">
-          <PageTitle
-            eyebrow={db ? b.category : "FICTIONAL SAMPLE BUSINESS"}
-            title={b.name}
-            description={`${b.category} Â· ${b.address}`}
+          <BusinessProfileHero
+            name={b.name}
+            category={db ? b.category : "FICTIONAL SAMPLE BUSINESS"}
+            address={b.address}
+            logo={
+              "logo_path" in b && typeof b.logo_path === "string"
+                ? b.logo_path
+                : null
+            }
+            photos={
+              "cover_paths" in b && Array.isArray(b.cover_paths)
+                ? b.cover_paths
+                : []
+            }
           />
           <div className="panel business-intro">
             <h2>A little about us</h2>

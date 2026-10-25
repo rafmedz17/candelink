@@ -369,10 +369,10 @@ export async function uploadFile(form: FormData): Promise<Result> {
   if (error) return { ok: false, message: "Upload failed. Please try again." };
   if (bucket === "avatars") {
     const { error: saveError } = businessId
-      ? await db
-          .from("businesses")
-          .update({ logo_path: path })
-          .eq("id", String(businessId))
+      ? await db.rpc("set_business_logo", {
+          bid: String(businessId),
+          image_path: path,
+        })
       : await db
           .from("profiles")
           .update({ avatar_path: path })
@@ -418,21 +418,14 @@ export async function deleteFile(
       .maybeSingle();
     if (findError || !business?.logo_path)
       return { ok: false, message: "No business logo was found." };
-    if (!business.logo_path.startsWith(`${user.id}/`))
-      return { ok: false, message: "This logo cannot be removed." };
-    const { error: removeError } = await db.storage
-      .from("avatars")
-      .remove([business.logo_path]);
-    if (removeError) return { ok: false, message: "Logo removal failed." };
-    const { error: updateError } = await db
-      .from("businesses")
-      .update({ logo_path: null })
-      .eq("id", parsed.data);
+    const { error: updateError } = await db.rpc("set_business_logo", {
+      bid: parsed.data,
+      image_path: null,
+    });
     if (updateError)
       return {
         ok: false,
-        message:
-          "The logo was deleted, but the business profile could not be updated.",
+        message: "The business logo could not be removed. Please try again.",
       };
     revalidatePath("/", "layout");
     return { ok: true, message: "Business logo deleted." };

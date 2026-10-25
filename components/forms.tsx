@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import Image from "next/image";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import {
@@ -117,7 +117,7 @@ export function PhotoUpload({
   const [pending, setPending] = useState(false);
   return (
     <div className="panel">
-      <h2>{businessId ? "Business logo" : "Your profile photo"}</h2>
+      <h2>{businessId ? "Business logo (optional)" : "Your profile photo"}</h2>
       {path && (
         <Image
           src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/avatars/${path}`}
@@ -316,22 +316,48 @@ export function ActionForm({
   submit?: string;
 }) {
   const router = useRouter();
+  const defaults = Object.fromEntries(
+    fields.map((field) => [
+      field.name,
+      String(field.value ?? field.options?.[0] ?? ""),
+    ]),
+  );
   const {
     register,
     handleSubmit,
-    formState: { isSubmitting },
-  } = useForm<Record<string, string>>();
+    reset,
+    formState: { isSubmitting, isDirty },
+  } = useForm<Record<string, string>>({ values: defaults });
+  const requiresChanges = [
+    "profile",
+    "business",
+    "job",
+    "note",
+    "application-status",
+    "moderate",
+  ].includes(kind);
   const [result, setResult] = useState<{ ok: boolean; message: string } | null>(
     null,
   );
+  useEffect(() => {
+    if (!result?.ok) return;
+    const timer = setTimeout(() => setResult(null), 2000);
+    return () => clearTimeout(timer);
+  }, [result]);
   return (
     <form
       className={`form-stack action-form action-form-${kind}`}
+      onChangeCapture={() => setResult(null)}
       onSubmit={handleSubmit(async (values) => {
+        if (requiresChanges && !isDirty) return;
+        setResult(null);
         try {
           const r = await mutate(kind, { ...hidden, ...values });
           setResult(r);
-          if (r.ok) router.refresh();
+          if (r.ok) {
+            reset(values);
+            router.refresh();
+          }
         } catch {
           setResult({
             ok: false,
@@ -347,15 +373,15 @@ export function ActionForm({
           {f.type === "textarea" ? (
             <textarea
               {...register(f.name, { required: f.required })}
+              disabled={isSubmitting}
               required={f.required}
-              defaultValue={f.value}
               maxLength={15000}
             />
           ) : f.options ? (
             <select
               {...register(f.name)}
-              defaultValue={f.value}
               required={f.required}
+              disabled={isSubmitting}
             >
               {f.options.map((v) => (
                 <option key={v}>{v}</option>
@@ -364,9 +390,9 @@ export function ActionForm({
           ) : (
             <input
               {...register(f.name, { required: f.required })}
+              disabled={isSubmitting}
               required={f.required}
               type={f.type || "text"}
-              defaultValue={f.value}
               placeholder={f.placeholder}
               maxLength={f.type === "number" ? undefined : 5000}
             />
@@ -381,7 +407,7 @@ export function ActionForm({
           {result.message}
         </p>
       )}
-      <Button disabled={isSubmitting}>
+      <Button disabled={isSubmitting || (requiresChanges && !isDirty)}>
         {isSubmitting ? "Saving…" : submit}
       </Button>
     </form>

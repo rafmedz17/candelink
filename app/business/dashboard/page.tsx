@@ -3,6 +3,7 @@ import { requireAccount } from "@/lib/access";
 import { DashboardLayout, SetupNeeded, Stats } from "@/components/dashboard";
 import { PageTitle } from "@/components/site";
 import { BusinessLocationPicker } from "@/components/business-location-picker";
+import { BusinessCoverUpload } from "@/components/business-cover-upload";
 import {
   ActionForm,
   QuickAction,
@@ -188,7 +189,14 @@ export default async function BusinessDashboard({
         </>
       )}
       {tab === "profile" && b && (
-        <PhotoUpload path={b.logo_path} businessId={b.id} />
+        <>
+          <PhotoUpload path={b.logo_path} businessId={b.id} />
+          <BusinessCoverUpload
+            key={b.id}
+            businessId={b.id}
+            paths={b.cover_paths || []}
+          />
+        </>
       )}
       {(tab === "profile" || !b) && (
         <div className="panel">
