@@ -136,20 +136,22 @@ export default async function Dashboard({
               },
             ]}
           />
-          <div className="panel profile-completion">
-            <h2>Your profile is {completion}% complete</h2>
-            <p>
-              Complete your details so people can understand your experience.
-            </p>
-            <div className="progress">
-              <span style={{ width: `${completion}%` }} />
+          {completion < 100 && (
+            <div className="panel profile-completion">
+              <h2>Your profile is {completion}% complete</h2>
+              <p>
+                Complete your details so people can understand your experience.
+              </p>
+              <div className="progress">
+                <span style={{ width: `${completion}%` }} />
+              </div>
+              <Link className="text-link" href="/dashboard?tab=profile">
+                {p.public_profile
+                  ? "Manage public profile"
+                  : "Finish your profile"}
+              </Link>
             </div>
-            <Link className="text-link" href="/dashboard?tab=profile">
-              {p.public_profile
-                ? "Manage public profile"
-                : "Finish your profile"}
-            </Link>
-          </div>
+          )}
         </>
       )}
       {tab === "profile" && <PhotoUpload path={p.avatar_path} />}
