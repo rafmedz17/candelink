@@ -9,6 +9,7 @@ import "./ux.css";
 import "./social.css";
 import "leaflet/dist/leaflet.css";
 import "./maps.css";
+import "./buttons.css";
 
 export const metadata: Metadata = {
   title: "CANDELINK | Where Candelaria Connects.",

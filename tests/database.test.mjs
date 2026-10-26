@@ -2595,3 +2595,147 @@ test("friend requests can be retried immediately after cancel, decline, remove a
   );
   assert.equal(rows.rows[0].status, "pending");
 });
+
+test("admin contact requires login and delivers private two-way inbox conversations", async () => {
+  ids.supportAdmin = "91000000-0000-4000-8000-000000000001";
+  ids.supportSeeker = "91000000-0000-4000-8000-000000000002";
+  ids.supportOwner = "91000000-0000-4000-8000-000000000003";
+  for (const key of ["supportAdmin", "supportSeeker", "supportOwner"]) {
+    await db.query(
+      "insert into auth.users(id,raw_user_meta_data) values($1,$2)",
+      [
+        ids[key],
+        JSON.stringify({
+          full_name: key,
+          account_type: key === "supportOwner" ? "business_owner" : "jobseeker",
+        }),
+      ],
+    );
+  }
+  await db.query(
+    "update public.profiles set role='admin',created_at='2000-01-01' where id=$1",
+    [ids.supportAdmin],
+  );
+  const mid = "92000000-0000-4000-8000-000000000001";
+  await as("anon", () =>
+    assert.rejects(
+      db.query("select public.contact_admin($1,'Help')", [mid]),
+      /permission denied/,
+    ),
+  );
+  let conversation;
+  await as("supportSeeker", async () => {
+    conversation = (
+      await db.query("select public.contact_admin($1,'Please help me') as id", [
+        mid,
+      ])
+    ).rows[0].id;
+    assert.equal(
+      (
+        await db.query(
+          "select public.contact_admin($1,'Please help me') as id",
+          [mid],
+        )
+      ).rows[0].id,
+      conversation,
+    );
+    await assert.rejects(
+      db.query("select public.contact_admin($1,'Different text')", [mid]),
+      /Invalid message identifier/,
+    );
+    const inbox = (
+      await db.query(
+        "select public.list_message_conversations(1,false) as data",
+      )
+    ).rows[0].data;
+    const thread = inbox.connections.find((c) => c.id === conversation);
+    assert.equal(thread.peer.id, ids.supportAdmin);
+    assert.equal(thread.status, "none");
+    assert.equal(thread.message_status, "accepted");
+  });
+  await as("supportAdmin", async () => {
+    const inbox = (
+      await db.query(
+        "select public.list_message_conversations(1,false) as data",
+      )
+    ).rows[0].data;
+    assert.equal(
+      inbox.connections.find((c) => c.id === conversation).unread_count,
+      1,
+    );
+    await db.query(
+      "select public.send_direct_message($1,gen_random_uuid(),'We can help you')",
+      [conversation],
+    );
+  });
+  await as("supportSeeker", async () => {
+    const data = (
+      await db.query("select public.conversation_messages($1) as data", [
+        conversation,
+      ])
+    ).rows[0].data;
+    assert.deepEqual(
+      data.messages.map((m) => m.body),
+      ["Please help me", "We can help you"],
+    );
+  });
+  await as("supportOwner", async () => {
+    await assert.rejects(
+      db.query("select public.conversation_messages($1)", [conversation]),
+      /Not authorized/,
+    );
+    const own = (
+      await db.query(
+        "select public.contact_admin(gen_random_uuid(),'Business help') as id",
+      )
+    ).rows[0].id;
+    assert.notEqual(own, conversation);
+  });
+  await db.query("update public.profiles set suspended=true where id=$1", [
+    ids.supportOwner,
+  ]);
+  await as("supportOwner", () =>
+    assert.rejects(
+      db.query("select public.contact_admin(gen_random_uuid(),'Help')"),
+      /Not authorized/,
+    ),
+  );
+  await db.query("update public.profiles set suspended=false where id=$1", [
+    ids.supportOwner,
+  ]);
+  await as("supportAdmin", () =>
+    db.query("select public.block_action($1,'block')", [ids.supportSeeker]),
+  );
+  await as("supportSeeker", () =>
+    assert.rejects(
+      db.query("select public.contact_admin($1,'Please help me')", [mid]),
+      /Invalid message identifier/,
+    ),
+  );
+  // With the only other active admin suspended, a block cannot be bypassed by contact.
+  await db.query(
+    "update public.profiles set suspended=true where role='admin' and id<>$1",
+    [ids.supportAdmin],
+  );
+  await as("supportSeeker", () =>
+    assert.rejects(
+      db.query("select public.contact_admin(gen_random_uuid(),'Help again')"),
+      /Admin unavailable/,
+    ),
+  );
+  await as("supportOwner", () =>
+    assert.rejects(
+      db.query("select public.contact_admin(gen_random_uuid(),'   ')"),
+      /Message must/,
+    ),
+  );
+  await db.query("update public.profiles set suspended=true where id=$1", [
+    ids.supportAdmin,
+  ]);
+  await as("supportOwner", () =>
+    assert.rejects(
+      db.query("select public.contact_admin(gen_random_uuid(),'Help')"),
+      /Admin unavailable/,
+    ),
+  );
+});

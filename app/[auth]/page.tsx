@@ -130,7 +130,11 @@ export default async function AuthPage({
                 ? "Log in to continue building your local connections."
                 : "We’ll help you securely recover access to your account."}
           </p>
-          <AuthForm mode={auth} role={p.role} />
+          <AuthForm
+            returnTo={p.next === "/contact" ? "/contact" : undefined}
+            mode={auth}
+            role={p.role}
+          />
           <div className="auth-links">
             {auth === "login" ? (
               <>

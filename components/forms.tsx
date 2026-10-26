@@ -506,9 +506,11 @@ export function ActionForm({
 export function AuthForm({
   mode,
   role = "jobseeker",
+  returnTo,
 }: {
   mode: string;
   role?: string;
+  returnTo?: "/contact";
 }) {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
@@ -525,7 +527,8 @@ export function AuthForm({
         try {
           const r = await authAction(mode, values);
           setResult(r);
-          if (r.url) router.push(r.url);
+          if (r.url)
+            router.push(mode === "login" && returnTo ? returnTo : r.url);
         } catch {
           setResult({
             ok: false,

@@ -30,7 +30,12 @@ export function Logo() {
   return (
     <Link href="/" className="brand" aria-label="Candelink home">
       <span className="brand-symbol brand-symbol-image" aria-hidden="true">
-        <Image src="/images/candelink-symbol.png" alt="" width={48} height={48} />
+        <Image
+          src="/images/candelink-symbol.png"
+          alt=""
+          width={48}
+          height={48}
+        />
       </span>
       cande<span>link</span>
       <span className="brand-period">.</span>
@@ -201,9 +206,9 @@ export function Footer() {
         <div>
           <strong>Let’s stay connected</strong>
           <p>Developed by Rafael Vincent D. Medina.</p>
-          <a href="mailto:hello@candelink.example">
+          <Link href="/contact">
             Contact the team <ArrowUpRight size={14} />
-          </a>
+          </Link>
           <div className="social-label">
             ♡ &nbsp; Proudly local. Always forward.
           </div>
