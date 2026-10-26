@@ -1615,6 +1615,14 @@ test("business map coordinates require a valid pair and only active members can 
 });
 
 test("public opportunity maps expose only safe current published jobs within the chosen bounds", async () => {
+  // Suspension permanently removes old jobs; map coverage gets its own active role.
+  await as("outsider", () =>
+    db.query(
+      "insert into public.jobs(business_id,title,description,employment_type,arrangement,location,category,status) values($1,'Evergreen local helper','Hiring','Full-time','On-site','Candelaria','Services','published')",
+      [evergreenBusiness],
+    ),
+  );
+
   await as("outsider", () =>
     db.query(
       `insert into public.jobs(business_id,title,description,employment_type,arrangement,location,category)
@@ -2180,9 +2188,32 @@ test("Auth deletion can remove a prepared user while preserving authored audit a
       [ids.deleteTarget, ids.other],
     )
   ).rows[0].id;
+  // Keep another active member so this job and its historical note survive deletion.
   await db.query(
-    "update public.applicant_notes set author_id=$1 where application_id=$2",
-    [ids.deleteTarget, application],
+    "insert into public.business_members(business_id,user_id) values($1,$2)",
+    [ownedBusiness, ids.outsider],
+  );
+  await db.query(
+    "update public.businesses set verification_status='verified' where id=$1",
+    [ownedBusiness],
+  );
+  const noteJob = (
+    await db.query(
+      "insert into public.jobs(business_id,title,description,employment_type,arrangement,location,category,status) values($1,'Note history role','Hiring','Full-time','On-site','Candelaria','Services','published') returning id",
+      [ownedBusiness],
+    )
+  ).rows[0].id;
+  const noteApplication = (
+    await as("seeker", () =>
+      db.query(
+        "insert into public.applications(job_id,applicant_id,cv_path) values($1,$2,$3) returning id",
+        [noteJob, ids.seeker, ids.seeker + "/resume.pdf"],
+      ),
+    )
+  ).rows[0].id;
+  await db.query(
+    "insert into public.applicant_notes(application_id,author_id,note) values($1,$2,'Historical note')",
+    [noteApplication, ids.deleteTarget],
   );
   await as("admin", () =>
     db.query("select public.prepare_user_deletion($1)", [ids.deleteTarget]),
@@ -2243,7 +2274,7 @@ test("Auth deletion can remove a prepared user while preserving authored audit a
     (
       await db.query(
         "select author_id from public.applicant_notes where application_id=$1",
-        [application],
+        [noteApplication],
       )
     ).rows[0].author_id,
     null,
@@ -2737,5 +2768,254 @@ test("admin contact requires login and delivers private two-way inbox conversati
       db.query("select public.contact_admin(gen_random_uuid(),'Help')"),
       /Admin unavailable/,
     ),
+  );
+});
+
+test("suspending or deleting the last owner permanently removes jobs and dependent records", async () => {
+  ids.jobCleanupAdmin = "94000000-0000-4000-8000-000000000001";
+  ids.jobCleanupOwner = "94000000-0000-4000-8000-000000000002";
+  ids.jobCleanupCoowner = "94000000-0000-4000-8000-000000000003";
+  for (const key of [
+    "jobCleanupAdmin",
+    "jobCleanupOwner",
+    "jobCleanupCoowner",
+  ]) {
+    await db.query(
+      "insert into auth.users(id,raw_user_meta_data) values($1,$2)",
+      [
+        ids[key],
+        JSON.stringify({ full_name: key, account_type: "business_owner" }),
+      ],
+    );
+  }
+  await db.query("update public.profiles set role='admin' where id=$1", [
+    ids.jobCleanupAdmin,
+  ]);
+  async function fixture(memberIds) {
+    const bid = (
+      await db.query(
+        "insert into public.businesses(name,description,category,address) values('Cleanup Business','Cleanup test business description','Services','Candelaria') returning id",
+      )
+    ).rows[0].id;
+    for (const member of memberIds)
+      await db.query(
+        "insert into public.business_members(business_id,user_id) values($1,$2)",
+        [bid, member],
+      );
+    await db.query(
+      "update public.businesses set verification_status='verified' where id=$1",
+      [bid],
+    );
+    const jid = (
+      await db.query(
+        "insert into public.jobs(business_id,title,description,employment_type,arrangement,location,category,status) values($1,'Cleanup role','Hiring','Full-time','On-site','Candelaria','Services','published') returning id",
+        [bid],
+      )
+    ).rows[0].id;
+    const aid = (
+      await as("seeker", () =>
+        db.query(
+          "insert into public.applications(job_id,applicant_id,cv_path) values($1,$2,$3) returning id",
+          [jid, ids.seeker, ids.seeker + "/resume.pdf"],
+        ),
+      )
+    ).rows[0].id;
+    await db.query(
+      "insert into public.applicant_notes(application_id,author_id,note) values($1,$2,'A note')",
+      [aid, ids.jobCleanupCoowner],
+    );
+    await db.query(
+      "insert into public.saved_jobs(user_id,job_id) values($1,$2)",
+      [ids.seeker, jid],
+    );
+    return { bid, jid, aid };
+  }
+  const sole = await fixture([ids.jobCleanupOwner]);
+  const shared = await fixture([ids.jobCleanupOwner, ids.jobCleanupCoowner]);
+  await as("jobCleanupCoowner", () =>
+    assert.rejects(
+      db.query("select private.remove_inactive_business_jobs($1,null)", [
+        shared.bid,
+      ]),
+      /permission denied/,
+    ),
+  );
+  await as("jobCleanupAdmin", () =>
+    db.query("select public.moderate($1,'user','suspend','')", [
+      ids.jobCleanupOwner,
+    ]),
+  );
+  assert.equal(
+    (await db.query("select id from public.jobs where id=$1", [sole.jid])).rows
+      .length,
+    0,
+  );
+  assert.equal(
+    (
+      await db.query("select id from public.applications where id=$1", [
+        sole.aid,
+      ])
+    ).rows.length,
+    0,
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select application_id from public.applicant_notes where application_id=$1",
+        [sole.aid],
+      )
+    ).rows.length,
+    0,
+  );
+  assert.equal(
+    (
+      await db.query("select job_id from public.saved_jobs where job_id=$1", [
+        sole.jid,
+      ])
+    ).rows.length,
+    0,
+  );
+  assert.equal(
+    (await db.query("select id from public.jobs where id=$1", [shared.jid]))
+      .rows.length,
+    1,
+  );
+  await as("jobCleanupAdmin", () =>
+    db.query("select public.moderate($1,'user','restore','')", [
+      ids.jobCleanupOwner,
+    ]),
+  );
+  assert.equal(
+    (await db.query("select id from public.jobs where id=$1", [sole.jid])).rows
+      .length,
+    0,
+  );
+  const direct = await fixture([ids.jobCleanupOwner]);
+  await db.query("delete from auth.users where id=$1", [ids.jobCleanupOwner]);
+  assert.equal(
+    (await db.query("select id from public.jobs where id=$1", [direct.jid]))
+      .rows.length,
+    0,
+  );
+  assert.equal(
+    (await db.query("select id from public.jobs where id=$1", [shared.jid]))
+      .rows.length,
+    1,
+  );
+  await as("jobCleanupAdmin", () =>
+    db.query("select public.prepare_user_deletion($1)", [
+      ids.jobCleanupCoowner,
+    ]),
+  );
+  assert.equal(
+    (await db.query("select id from public.jobs where id=$1", [shared.jid]))
+      .rows.length,
+    0,
+  );
+  const orphan = await fixture([]);
+  assert.equal(
+    (
+      await db.query(
+        "select private.remove_inactive_business_jobs($1,null) as removed",
+        [orphan.bid],
+      )
+    ).rows[0].removed,
+    1,
+  );
+  assert.equal(
+    (await db.query("select id from public.jobs where id=$1", [orphan.jid]))
+      .rows.length,
+    0,
+  );
+});
+
+test("deleted owners leave no orphan business or verification records; shared and suspended owners remain", async () => {
+  ids.orphanOwner = "95000000-0000-4000-8000-000000000001";
+  ids.orphanCoowner = "95000000-0000-4000-8000-000000000002";
+  for (const key of ["orphanOwner", "orphanCoowner"])
+    await db.query(
+      "insert into auth.users(id,raw_user_meta_data) values($1,$2)",
+      [
+        ids[key],
+        JSON.stringify({ full_name: key, account_type: "business_owner" }),
+      ],
+    );
+  async function fixture(members) {
+    const bid = (
+      await db.query(
+        "insert into public.businesses(name,description,category,address) values('Orphan cleanup business','A verification cleanup test business','Services','Candelaria') returning id",
+      )
+    ).rows[0].id;
+    for (const id of members)
+      await db.query(
+        "insert into public.business_members(business_id,user_id) values($1,$2)",
+        [bid, id],
+      );
+    await db.query(
+      "insert into public.business_contacts(business_id,contact_email) values($1,'test@example.com')",
+      [bid],
+    );
+    await db.query(
+      "insert into public.business_verification_requests(business_id,requested_by) values($1,$2)",
+      [bid, ids.orphanOwner],
+    );
+    return bid;
+  }
+  const sole = await fixture([ids.orphanOwner]),
+    shared = await fixture([ids.orphanOwner, ids.orphanCoowner]);
+  await db.query("update public.profiles set suspended=true where id=$1", [
+    ids.orphanOwner,
+  ]);
+  assert.equal(
+    (await db.query("select id from public.businesses where id=$1", [sole]))
+      .rows.length,
+    1,
+  );
+  await db.query("delete from auth.users where id=$1", [ids.orphanOwner]);
+  for (const table of [
+    "businesses",
+    "business_contacts",
+    "business_verification_requests",
+  ]) {
+    const column = table === "businesses" ? "id" : "business_id";
+    assert.equal(
+      (
+        await db.query(`select * from public.${table} where ${column}=$1`, [
+          sole,
+        ])
+      ).rows.length,
+      0,
+    );
+  }
+  assert.equal(
+    (await db.query("select id from public.businesses where id=$1", [shared]))
+      .rows.length,
+    1,
+  );
+  await as("orphanCoowner", () =>
+    assert.rejects(
+      db.query("select private.remove_orphan_business($1)", [shared]),
+      /permission denied/,
+    ),
+  );
+  await db.query("select set_config('request.jwt.claim.sub',$1,false)",[ids.jobCleanupAdmin]);
+  await db.query("delete from auth.users where id=$1", [ids.orphanCoowner]);
+  assert.equal(
+    (await db.query("select id from public.businesses where id=$1", [shared]))
+      .rows.length,
+    0,
+  );
+  const legacy = (
+    await db.query(
+      "insert into public.businesses(name,description,category,address) values('Legacy orphan','A legacy orphaned business description','Services','Candelaria') returning id",
+    )
+  ).rows[0].id;
+  assert.equal(
+    (
+      await db.query("select private.remove_orphan_business($1) as removed", [
+        legacy,
+      ])
+    ).rows[0].removed,
+    true,
   );
 });

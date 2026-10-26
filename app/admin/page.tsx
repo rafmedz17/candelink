@@ -51,8 +51,7 @@ export default async function Admin({
   const filteredBusinesses = (businesses || []).filter((b) =>
     `${b.name} ${b.verification_status}`.toLowerCase().includes(q),
   );
-  const visibleBusinesses =
-    tab === "overview" ? filteredBusinesses.slice(0, 5) : filteredBusinesses;
+  const visibleBusinesses = filteredBusinesses;
   return (
     <DashboardLayout role="admin" active={tab}>
       <PageTitle
@@ -194,64 +193,66 @@ export default async function Admin({
             ))}
             {!requests?.length && <p>The verification queue is clear.</p>}
           </div>
-          <div className="workspace-list-heading">
-            <div>
-              <h2>
-                {tab === "overview" ? "Recent business reviews" : "Businesses"}
-              </h2>
-              <p>
-                {filteredBusinesses.length} matching business
-                {filteredBusinesses.length === 1 ? "" : "es"}
-              </p>
-            </div>
-            {tab === "overview" && filteredBusinesses.length > 5 && (
-              <Link className="text-link" href="/admin?tab=businesses">
-                Review all businesses
-              </Link>
-            )}
-          </div>
-          {visibleBusinesses.map((b) => (
-            <details className="panel" key={b.id}>
-              <summary className="review-summary">
-                <span>{b.name}</span>
-                <span
-                  className={`badge status-badge status-badge--${b.verification_status}`}
-                >
-                  {b.verification_status}
-                </span>
-              </summary>
-              <p>
-                {b.description}
-                <br />
-                {b.address}
-                <br />
-                {b.business_contacts?.contact_email}
-              </p>
-              <ActionForm
-                kind="moderate"
-                hidden={{ target: "business", id: b.id }}
-                fields={[
-                  {
-                    name: "decision",
-                    label: "Decision",
-                    options: ["pending", "verified", "rejected", "suspended"],
-                    value: "pending",
-                  },
-                  {
-                    name: "reason",
-                    label: "Recorded reason (optional)",
-                    type: "textarea",
-                  },
-                ]}
-                submit="Record decision"
-              />
-            </details>
-          ))}
-          {!visibleBusinesses.length && (
-            <div className="empty-state">
-              <h2>No matching businesses</h2>
-              <p>Try a different search or check another review queue.</p>
-            </div>
+          {tab === "businesses" && (
+            <>
+              <div className="workspace-list-heading">
+                <div>
+                  <h2>Businesses</h2>
+                  <p>
+                    {filteredBusinesses.length} matching business
+                    {filteredBusinesses.length === 1 ? "" : "es"}
+                  </p>
+                </div>
+              </div>
+              {visibleBusinesses.map((b) => (
+                <details className="panel" key={b.id}>
+                  <summary className="review-summary">
+                    <span>{b.name}</span>
+                    <span
+                      className={`badge status-badge status-badge--${b.verification_status}`}
+                    >
+                      {b.verification_status}
+                    </span>
+                  </summary>
+                  <p>
+                    {b.description}
+                    <br />
+                    {b.address}
+                    <br />
+                    {b.business_contacts?.contact_email}
+                  </p>
+                  <ActionForm
+                    kind="moderate"
+                    hidden={{ target: "business", id: b.id }}
+                    fields={[
+                      {
+                        name: "decision",
+                        label: "Decision",
+                        options: [
+                          "pending",
+                          "verified",
+                          "rejected",
+                          "suspended",
+                        ],
+                        value: "pending",
+                      },
+                      {
+                        name: "reason",
+                        label: "Recorded reason (optional)",
+                        type: "textarea",
+                      },
+                    ]}
+                    submit="Record decision"
+                  />
+                </details>
+              ))}
+              {!visibleBusinesses.length && (
+                <div className="empty-state">
+                  <h2>No matching businesses</h2>
+                  <p>Try a different search or check another review queue.</p>
+                </div>
+              )}
+            </>
           )}
         </>
       )}

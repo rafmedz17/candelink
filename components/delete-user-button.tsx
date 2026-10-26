@@ -51,8 +51,9 @@ export function DeleteUserButton({
         >
           <p>
             Permanently delete {name || "this user"}? This removes their
-            account, uploaded files, applications, and conversations. This
-            cannot be undone.
+            account, uploaded files, applications, and conversations. Jobs and
+            their applications are also deleted when no active business member
+            remains. This cannot be undone.
           </p>
           <label>
             Type DELETE to confirm
