@@ -1,4 +1,6 @@
 import Image from "next/image";
+import { HeroJobSearch } from "@/components/hero-job-search";
+import { supabase } from "@/lib/supabase/server";
 import Link from "next/link";
 import {
   ArrowUpRight,
@@ -21,6 +23,13 @@ import { Header, Footer, JobCard } from "@/components/site";
 import { getJobs, featuredBusinesses, communityProfiles } from "@/lib/data";
 
 export default async function Home() {
+  const db = await supabase();
+  const user = db ? (await db.auth.getUser()).data.user : null;
+  const { data: profile } = user
+    ? await db!.from("profiles").select("role").eq("id", user.id).maybeSingle()
+    : { data: null };
+  const showSignupSections =
+    !user || !["jobseeker", "business_owner"].includes(profile?.role ?? "");
   const { jobs, demo } = await getJobs();
   const businesses = await featuredBusinesses();
   const people = await communityProfiles();
@@ -51,20 +60,7 @@ export default async function Home() {
                 discover meaningful work,
                 <br className="desktop" /> and build your future in Candelaria.
               </p>
-              <form action="/jobs" className="hero-search">
-                <Search size={21} />
-                <input
-                  aria-label="Job title, keyword, or company"
-                  name="q"
-                  placeholder="Job title, keyword, or company"
-                />
-                <span className="search-divider" />
-                <MapPin size={19} />
-                <span className="search-location">Candelaria, Quezon</span>
-                <button className="button">
-                  Find jobs <ArrowUpRight size={17} />
-                </button>
-              </form>
+              <HeroJobSearch />
               <Link className="text-link map-browse-link" href="/maps">
                 <MapPin size={16} aria-hidden="true" /> Explore nearby
                 opportunities on the map ↗
@@ -354,36 +350,44 @@ export default async function Home() {
             ))}
           </div>
         </section>
-        <section className="container">
-          <div className="hiring-banner">
-            <div className="banner-decoration">
-              <Store size={86} strokeWidth={1} />
-            </div>
-            <div>
-              <span className="eyebrow">FOR THE LOCAL DREAM BUILDERS</span>
-              <h2>Great teams grow locally.</h2>
+        {showSignupSections && (
+          <>
+            <section className="container">
+              <div className="hiring-banner">
+                <div className="banner-decoration">
+                  <Store size={86} strokeWidth={1} />
+                </div>
+                <div>
+                  <span className="eyebrow">FOR THE LOCAL DREAM BUILDERS</span>
+                  <h2>Great teams grow locally.</h2>
+                  <p>
+                    Your next great hire might be your neighbor.
+                    <br />
+                    Find the right people to help your business move forward.
+                  </p>
+                </div>
+                <Link
+                  href="/register?role=business_owner"
+                  className="button light"
+                >
+                  Start hiring locally <ArrowUpRight size={18} />
+                </Link>
+              </div>
+            </section>
+            <section className="join-section container">
+              <Sprout size={28} />
+              <h2>You don’t have to go far to go forward.</h2>
               <p>
-                Your next great hire might be your neighbor.
-                <br />
-                Find the right people to help your business move forward.
+                Put your skills on the map. Your community is full of
+                possibilities.
               </p>
-            </div>
-            <Link href="/register?role=business_owner" className="button light">
-              Start hiring locally <ArrowUpRight size={18} />
-            </Link>
-          </div>
-        </section>
-        <section className="join-section container">
-          <Sprout size={28} />
-          <h2>You don’t have to go far to go forward.</h2>
-          <p>
-            Put your skills on the map. Your community is full of possibilities.
-          </p>
-          <Link className="button" href="/register">
-            Create your free profile <ArrowUpRight size={17} />
-          </Link>
-          <small>For your career. For your community.</small>
-        </section>
+              <Link className="button" href="/register">
+                Create your free profile <ArrowUpRight size={17} />
+              </Link>
+              <small>For your career. For your community.</small>
+            </section>
+          </>
+        )}
       </main>
       <Footer />
     </>

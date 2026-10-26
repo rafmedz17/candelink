@@ -1,5 +1,6 @@
 "use client";
 
+import { useFeedback } from "./use-feedback";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -36,7 +37,7 @@ export function FriendActions({
 }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
-  const [result, setResult] = useState<Result | null>(null);
+  const [result, setResult] = useFeedback<Result>();
   async function act(decision: string) {
     if (
       decision === "remove" &&
@@ -181,7 +182,7 @@ export function BlockButton({
 }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
-  const [result, setResult] = useState<Result | null>(null);
+  const [result, setResult] = useFeedback<Result>();
   return (
     <div className="block-control">
       <button
@@ -338,7 +339,7 @@ export function MessageComposer({ connectionId }: { connectionId: string }) {
   const router = useRouter();
   const [body, setBody] = useState("");
   const [pending, setPending] = useState(false);
-  const [result, setResult] = useState<Result | null>(null);
+  const [result, setResult] = useFeedback<Result>();
   const nonce = useRef<string | null>(null);
   return (
     <form
@@ -406,7 +407,7 @@ export function MessageComposer({ connectionId }: { connectionId: string }) {
 export function MessageRequestButton({ targetId }: { targetId: string }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
-  const [result, setResult] = useState<Result | null>(null);
+  const [result, setResult] = useFeedback<Result>();
   return (
     <>
       <button
@@ -447,7 +448,7 @@ export function MessageRequestActions({
 }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
-  const [result, setResult] = useState<Result | null>(null);
+  const [result, setResult] = useFeedback<Result>();
   async function respond(decision: string) {
     setPending(true);
     try {

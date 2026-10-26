@@ -1,3 +1,4 @@
+import { PhotoSaveProvider } from "./photo-save-context";
 import Link from "next/link";
 import {
   LayoutDashboard,
@@ -101,7 +102,11 @@ export function DashboardLayout({
               <ActivityBadge kind="messages" />
             </Link>
           </nav>
-          <div className="dashboard-content">{children}</div>
+          <div className="dashboard-content">
+            <PhotoSaveProvider key={active + (businessId || "")}>
+              {children}
+            </PhotoSaveProvider>
+          </div>
         </div>
       </main>
       <footer className="workspace-footer">

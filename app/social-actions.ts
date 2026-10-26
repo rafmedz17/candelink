@@ -92,11 +92,9 @@ export async function friendAction(
     if (error)
       return {
         ok: false,
-        message: error.message.includes("wait before")
-          ? "Please wait 24 hours before sending another request."
-          : error.message.includes("Daily action")
-            ? "You've reached today's request limit. Try again tomorrow."
-            : "The request could not be updated. Refresh and try again.",
+        message: error.message.includes("Daily action")
+          ? "You've reached today's request limit. Try again tomorrow."
+          : "The request could not be updated. Refresh and try again.",
       };
     revalidatePath("/friends");
     revalidatePath("/messages");

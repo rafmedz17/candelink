@@ -1078,9 +1078,8 @@ test("conversation history paginates without duplicates and unfriend stops sendi
       ).rows[0].data.messages.length,
       30,
     );
-    await assert.rejects(
-      db.query("select public.friend_action($1,'request')", [ids.other]),
-    );
+    await db.query("select public.friend_action($1,'request')", [ids.other]);
+    await db.query("select public.friend_action($1,'cancel')", [ids.other]);
   });
 });
 
@@ -2548,4 +2547,51 @@ test("empty people searches browse public accounts and one-character queries fil
       );
     }
   });
+});
+
+test("friend requests can be retried immediately after cancel, decline, remove and unblock", async () => {
+  ids.retrySender = "90000000-0000-4000-8000-000000000001";
+  ids.retryRecipient = "90000000-0000-4000-8000-000000000002";
+  for (const key of ["retrySender", "retryRecipient"]) {
+    await db.query(
+      "insert into auth.users(id,raw_user_meta_data) values($1,$2)",
+      [ids[key], JSON.stringify({ full_name: key, account_type: "jobseeker" })],
+    );
+    await db.query(
+      "update public.profiles set public_profile=true where id=$1",
+      [ids[key]],
+    );
+  }
+  const act = (who, peer, decision) =>
+    as(who, () =>
+      db.query("select public.friend_action($1,$2)", [ids[peer], decision]),
+    );
+  await act("retrySender", "retryRecipient", "request");
+  await act("retrySender", "retryRecipient", "cancel");
+  await act("retrySender", "retryRecipient", "request");
+  await act("retryRecipient", "retrySender", "decline");
+  await act("retrySender", "retryRecipient", "request");
+  await act("retryRecipient", "retrySender", "accept");
+  await act("retrySender", "retryRecipient", "remove");
+  await act("retrySender", "retryRecipient", "request");
+  await as("retrySender", () =>
+    db.query("select public.block_action($1,'block')", [ids.retryRecipient]),
+  );
+  await assert.rejects(
+    act("retrySender", "retryRecipient", "request"),
+    /Interaction unavailable/,
+  );
+  await as("retrySender", () =>
+    db.query("select public.block_action($1,'unblock')", [ids.retryRecipient]),
+  );
+  await act("retrySender", "retryRecipient", "request");
+  await assert.rejects(
+    act("retrySender", "retryRecipient", "request"),
+    /Already connected or pending/,
+  );
+  const rows = await db.query(
+    "select status from public.friendships where requester_id=$1 and recipient_id=$2",
+    [ids.retrySender, ids.retryRecipient],
+  );
+  assert.equal(rows.rows[0].status, "pending");
 });

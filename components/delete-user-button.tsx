@@ -1,5 +1,6 @@
 "use client";
 
+import { useFeedback } from "./use-feedback";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { deleteUser } from "@/app/admin/user-actions";
@@ -16,7 +17,7 @@ export function DeleteUserButton({
   const [open, setOpen] = useState(false);
   const [confirmation, setConfirmation] = useState("");
   const [pending, setPending] = useState(false);
-  const [result, setResult] = useState<Result | null>(null);
+  const [result, setResult] = useFeedback<Result>();
   return (
     <div className="delete-user-control">
       {!open ? (

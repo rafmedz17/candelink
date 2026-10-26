@@ -1,5 +1,12 @@
 "use client";
+import { useFeedback } from "./use-feedback";
+import {
+  usePhotoSave,
+  usePhotoTask,
+  useUnsavedForm,
+} from "./photo-save-context";
 import Link from "next/link";
+import { Trash2 } from "lucide-react";
 import Image from "next/image";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -12,6 +19,7 @@ import {
   uploadFile,
 } from "@/app/actions";
 import { Button } from "./ui/button";
+import { PhotoCropDialog } from "./photo-crop-dialog";
 type Field = {
   name: string;
   label: string;
@@ -23,10 +31,7 @@ type Field = {
 };
 export function PrivateCvUpload({ hasCv }: { hasCv: boolean }) {
   const router = useRouter();
-  const [result, setResult] = useState<{
-    ok: boolean;
-    message: string;
-  } | null>(null);
+  const [result, setResult] = useFeedback();
   const [pending, setPending] = useState(false);
   return (
     <section className="panel">
@@ -110,17 +115,73 @@ export function PhotoUpload({
   businessId?: string;
 }) {
   const router = useRouter();
-  const [result, setResult] = useState<{
-    ok: boolean;
-    message: string;
-  } | null>(null);
+  const [result, setResult] = useFeedback();
   const [pending, setPending] = useState(false);
+  const [selectedPhoto, setSelectedPhoto] = useState<File | null>(null);
+  const [draft, setDraft] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  useEffect(
+    () => () => {
+      if (preview) URL.revokeObjectURL(preview);
+    },
+    [preview],
+  );
+  async function savePhoto() {
+    if (!draft) return;
+    const file = draft;
+    setPending(true);
+    try {
+      const data = new FormData();
+      data.set("file", file);
+      data.set("bucket", "avatars");
+      if (businessId) data.set("business_id", businessId);
+      const response = await uploadFile(data);
+      if (!response.ok) throw new Error(response.message);
+      if (!photoSave) setResult(response);
+      if (response.ok) {
+        setDraft(null);
+        setPreview(null);
+        if (!photoSave) router.refresh();
+      }
+    } catch (error) {
+      if (photoSave) throw error;
+      setResult({
+        ok: false,
+        message: "The upload could not be completed. Check your connection.",
+      });
+    } finally {
+      setPending(false);
+    }
+  }
+  const photoSave = usePhotoTask(
+    businessId ? `business:${businessId}` : "profile",
+    Boolean(draft),
+    savePhoto,
+  );
+  const locked = pending || Boolean(photoSave?.busy);
   return (
-    <div className="panel">
+    <div className="panel photo-upload-panel">
+      {selectedPhoto && (
+        <PhotoCropDialog
+          file={selectedPhoto}
+          pending={locked}
+          onSave={async (file) => {
+            setPreview(URL.createObjectURL(file));
+            setDraft(file);
+            setSelectedPhoto(null);
+            setResult(null);
+          }}
+          onCancel={() => setSelectedPhoto(null)}
+        />
+      )}
       <h2>{businessId ? "Business logo (optional)" : "Your profile photo"}</h2>
-      {path && (
+      {(draft || path) && (
         <Image
-          src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/avatars/${path}`}
+          src={
+            draft && preview
+              ? preview
+              : `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/avatars/${path}`
+          }
           alt={businessId ? "Business logo" : "Profile photo"}
           width={80}
           height={80}
@@ -138,38 +199,56 @@ export function PhotoUpload({
         <input
           type="file"
           accept="image/jpeg,image/png"
-          disabled={pending}
-          onChange={async (e) => {
+          disabled={locked}
+          onChange={(e) => {
             const file = e.target.files?.[0];
+            e.target.value = "";
             if (!file) return;
-            setPending(true);
-            try {
-              const data = new FormData();
-              data.set("file", file);
-              data.set("bucket", "avatars");
-              if (businessId) data.set("business_id", businessId);
-              const r = await uploadFile(data);
-              setResult(r);
-              if (r.ok) router.refresh();
-            } catch {
+            setResult(null);
+            if (
+              !["image/jpeg", "image/png"].includes(file.type) ||
+              file.size > 5 * 1024 * 1024
+            ) {
               setResult({
                 ok: false,
-                message:
-                  "The upload could not be completed. Check your connection.",
+                message: "Choose a JPEG or PNG photo up to 5 MB.",
               });
-            } finally {
-              setPending(false);
+              return;
             }
+            setSelectedPhoto(file);
           }}
         />
       </label>
+      <div className="photo-crop-actions">
+        {!photoSave && (
+          <Button type="button" disabled={locked || !draft} onClick={savePhoto}>
+            {pending ? "Saving..." : "Save changes"}
+          </Button>
+        )}
+        {draft && (
+          <Button
+            type="button"
+            variant="outline"
+            disabled={pending}
+            onClick={() => {
+              setDraft(null);
+              setPreview(null);
+            }}
+          >
+            Discard changes
+          </Button>
+        )}
+      </div>
       {path && (
         <Button
           type="button"
           variant="outline"
-          className="danger"
-          style={{ marginTop: 14 }}
-          disabled={pending}
+          className="danger photo-delete-button"
+          aria-label={
+            businessId ? "Delete business logo" : "Delete profile photo"
+          }
+          title={businessId ? "Delete business logo" : "Delete profile photo"}
+          disabled={locked || Boolean(draft)}
           onClick={async () => {
             if (
               !window.confirm(
@@ -192,7 +271,7 @@ export function PhotoUpload({
             }
           }}
         >
-          Delete {businessId ? "logo" : "photo"}
+          <Trash2 size={18} aria-hidden="true" />
         </Button>
       )}
       {result && (
@@ -214,10 +293,7 @@ export function ProfileVisibility({
   isPublic: boolean;
 }) {
   const router = useRouter();
-  const [result, setResult] = useState<{
-    ok: boolean;
-    message: string;
-  } | null>(null);
+  const [result, setResult] = useFeedback();
   const [pending, setPending] = useState(false);
   return (
     <section className="profile-visibility panel">
@@ -316,6 +392,9 @@ export function ActionForm({
   submit?: string;
 }) {
   const router = useRouter();
+  const photoSave = usePhotoSave();
+  const photoScope = kind === "business" ? `business:${hidden.id ?? ""}` : kind;
+  const photosDirty = Boolean(photoSave?.dirty[photoScope]);
   const defaults = Object.fromEntries(
     fields.map((field) => [
       field.name,
@@ -328,6 +407,7 @@ export function ActionForm({
     reset,
     formState: { isSubmitting, isDirty },
   } = useForm<Record<string, string>>({ values: defaults });
+  const saving = isSubmitting || Boolean(photoSave?.busy);
   const requiresChanges = [
     "profile",
     "business",
@@ -336,36 +416,44 @@ export function ActionForm({
     "application-status",
     "moderate",
   ].includes(kind);
-  const [result, setResult] = useState<{ ok: boolean; message: string } | null>(
-    null,
-  );
-  useEffect(() => {
-    if (!result?.ok) return;
-    const timer = setTimeout(() => setResult(null), 2000);
-    return () => clearTimeout(timer);
-  }, [result]);
+  const [result, setResult] = useFeedback();
+  async function saveValues(values: Record<string, string>) {
+    if (requiresChanges && !isDirty && !photosDirty) return;
+    setResult(null);
+    try {
+      const response = await mutate(kind, { ...hidden, ...values });
+      if (!response.ok) {
+        setResult(response);
+        throw new Error(response.message);
+      }
+      if (photosDirty) await photoSave!.save(photoScope);
+      setResult(response);
+      reset(values);
+      router.refresh();
+    } catch (error) {
+      setResult({
+        ok: false,
+        message:
+          error instanceof Error
+            ? error.message
+            : "We couldn't save your changes. Please try again.",
+      });
+      throw error;
+    }
+  }
+  useUnsavedForm(requiresChanges && (isDirty || photosDirty), async () => {
+    await handleSubmit(saveValues, () => {
+      throw new Error("Please complete the required fields.");
+    })();
+  });
+
   return (
     <form
       className={`form-stack action-form action-form-${kind}`}
       onChangeCapture={() => setResult(null)}
-      onSubmit={handleSubmit(async (values) => {
-        if (requiresChanges && !isDirty) return;
-        setResult(null);
-        try {
-          const r = await mutate(kind, { ...hidden, ...values });
-          setResult(r);
-          if (r.ok) {
-            reset(values);
-            router.refresh();
-          }
-        } catch {
-          setResult({
-            ok: false,
-            message:
-              "We couldn't save your changes. Check your connection and try again.",
-          });
-        }
-      })}
+      onSubmit={(event) => {
+        void handleSubmit(saveValues)(event).catch(() => {});
+      }}
     >
       {fields.map((f) => (
         <label key={f.name}>
@@ -373,7 +461,7 @@ export function ActionForm({
           {f.type === "textarea" ? (
             <textarea
               {...register(f.name, { required: f.required })}
-              disabled={isSubmitting}
+              disabled={saving}
               required={f.required}
               maxLength={15000}
             />
@@ -381,7 +469,7 @@ export function ActionForm({
             <select
               {...register(f.name)}
               required={f.required}
-              disabled={isSubmitting}
+              disabled={saving}
             >
               {f.options.map((v) => (
                 <option key={v}>{v}</option>
@@ -390,7 +478,7 @@ export function ActionForm({
           ) : (
             <input
               {...register(f.name, { required: f.required })}
-              disabled={isSubmitting}
+              disabled={saving}
               required={f.required}
               type={f.type || "text"}
               placeholder={f.placeholder}
@@ -407,8 +495,10 @@ export function ActionForm({
           {result.message}
         </p>
       )}
-      <Button disabled={isSubmitting || (requiresChanges && !isDirty)}>
-        {isSubmitting ? "Saving…" : submit}
+      <Button
+        disabled={saving || (requiresChanges && !isDirty && !photosDirty)}
+      >
+        {saving ? "Saving…" : submit}
       </Button>
     </form>
   );
@@ -427,9 +517,7 @@ export function AuthForm({
     handleSubmit,
     formState: { isSubmitting },
   } = useForm<Record<string, string>>();
-  const [result, setResult] = useState<{ ok: boolean; message: string } | null>(
-    null,
-  );
+  const [result, setResult] = useFeedback();
   return (
     <form
       className="form-stack auth-stack"
@@ -577,10 +665,7 @@ export function AuthForm({
 export function ApplyForm({ id, sample }: { id: string; sample: boolean }) {
   const [path, setPath] = useState("");
   const [fileName, setFileName] = useState("");
-  const [result, setResult] = useState<{
-    ok: boolean;
-    message: string;
-  } | null>(null);
+  const [result, setResult] = useFeedback();
   const [pending, setPending] = useState(false);
   return (
     <div className="form-stack application-form">
@@ -673,10 +758,7 @@ export function QuickAction({
   confirm?: boolean;
 }) {
   const router = useRouter();
-  const [result, setResult] = useState<{
-    ok: boolean;
-    message: string;
-  } | null>(null);
+  const [result, setResult] = useFeedback();
   const [pending, setPending] = useState(false);
   return (
     <div>
@@ -722,10 +804,7 @@ export function QuickAction({
 }
 export function CvButton({ id }: { id: string }) {
   const [link, setLink] = useState("");
-  const [result, setResult] = useState<{
-    ok: boolean;
-    message: string;
-  } | null>(null);
+  const [result, setResult] = useFeedback();
   return (
     <div>
       <Button
