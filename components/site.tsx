@@ -1,9 +1,9 @@
 import Link from "next/link";
+import Image from "next/image";
 import {
   ArrowUpRight,
   MapPin,
   BriefcaseBusiness,
-  Link2,
   Coffee,
   Monitor,
   Store,
@@ -29,8 +29,8 @@ import { ActivityBadge } from "./activity-badge";
 export function Logo() {
   return (
     <Link href="/" className="brand" aria-label="Candelink home">
-      <span className="brand-symbol">
-        <Link2 size={24} strokeWidth={2.7} />
+      <span className="brand-symbol brand-symbol-image" aria-hidden="true">
+        <Image src="/images/candelink-symbol.png" alt="" width={48} height={48} />
       </span>
       cande<span>link</span>
       <span className="brand-period">.</span>

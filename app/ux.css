@@ -2799,3 +2799,19 @@ td::before {
 .mini-avatars .community-avatar:hover {
   outline: 2px solid var(--green);
 }
+.brand .brand-symbol-image {
+  position: relative;
+  flex-shrink: 0;
+  overflow: hidden;
+  background: #fff;
+  border-radius: 50%;
+}
+
+.brand-symbol-image img {
+  position: absolute;
+  width: 125%;
+  height: 125%;
+  max-width: none;
+  object-fit: contain;
+}
+
