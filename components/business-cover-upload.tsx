@@ -23,7 +23,7 @@ export function BusinessCoverUpload({
   const [files, setFiles] = useState<File[]>([]);
   const [removed, setRemoved] = useState<string[]>([]);
   const [pending, setPending] = useState(false);
-  const [result, setResult] = useFeedback();
+  const [, setResult] = useFeedback();
   const visible = saved.filter((path) => !removed.includes(path));
   const dirty = files.length > 0 || removed.length > 0;
   async function save() {
@@ -184,14 +184,6 @@ export function BusinessCoverUpload({
           </button>
         )}
       </div>
-      {result && (
-        <p
-          className={"form-message " + (result.ok ? "" : "error")}
-          role={result.ok ? "status" : "alert"}
-        >
-          {result.message}
-        </p>
-      )}
     </section>
   );
 }

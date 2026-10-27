@@ -37,7 +37,7 @@ export function FriendActions({
 }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
-  const [result, setResult] = useFeedback<Result>();
+  const [, setResult] = useFeedback<Result>();
   async function act(decision: string) {
     if (
       decision === "remove" &&
@@ -142,14 +142,6 @@ export function FriendActions({
       ) : (
         <p>Account unavailable.</p>
       )}
-      {result && (
-        <p
-          className={`form-message ${result.ok ? "" : "error"}`}
-          role={result.ok ? "status" : "alert"}
-        >
-          {result.message}
-        </p>
-      )}
     </div>
   );
 }
@@ -182,7 +174,7 @@ export function BlockButton({
 }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
-  const [result, setResult] = useFeedback<Result>();
+  const [, setResult] = useFeedback<Result>();
   return (
     <div className="block-control">
       <button
@@ -220,14 +212,6 @@ export function BlockButton({
       >
         {pending ? "Please wait…" : blockedByMe ? "Unblock" : "Block"}
       </button>
-      {result && (
-        <p
-          className={`form-message ${result.ok ? "" : "error"}`}
-          role={result.ok ? "status" : "alert"}
-        >
-          {result.message}
-        </p>
-      )}
     </div>
   );
 }
@@ -339,7 +323,7 @@ export function MessageComposer({ connectionId }: { connectionId: string }) {
   const router = useRouter();
   const [body, setBody] = useState("");
   const [pending, setPending] = useState(false);
-  const [result, setResult] = useFeedback<Result>();
+  const [, setResult] = useFeedback<Result>();
   const nonce = useRef<string | null>(null);
   return (
     <form
@@ -392,14 +376,6 @@ export function MessageComposer({ connectionId }: { connectionId: string }) {
           {pending ? "Sending…" : "Send"}
         </button>
       </div>
-      {result && (
-        <p
-          className={`form-message ${result.ok ? "" : "error"}`}
-          role={result.ok ? "status" : "alert"}
-        >
-          {result.message}
-        </p>
-      )}
     </form>
   );
 }
@@ -407,7 +383,7 @@ export function MessageComposer({ connectionId }: { connectionId: string }) {
 export function MessageRequestButton({ targetId }: { targetId: string }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
-  const [result, setResult] = useFeedback<Result>();
+  const [, setResult] = useFeedback<Result>();
   return (
     <>
       <button
@@ -432,11 +408,6 @@ export function MessageRequestButton({ targetId }: { targetId: string }) {
         <MessageCircle size={17} aria-hidden="true" />
         {pending ? "Opening…" : "Message"}
       </button>
-      {result && !result.ok && (
-        <p className="form-message error" role="alert">
-          {result.message}
-        </p>
-      )}
     </>
   );
 }
@@ -448,7 +419,7 @@ export function MessageRequestActions({
 }) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
-  const [result, setResult] = useFeedback<Result>();
+  const [, setResult] = useFeedback<Result>();
   async function respond(decision: string) {
     setPending(true);
     try {
@@ -487,11 +458,6 @@ export function MessageRequestActions({
           Decline message request
         </button>
       </div>
-      {result && !result.ok && (
-        <p className="form-message error" role="alert">
-          {result.message}
-        </p>
-      )}
     </div>
   );
 }

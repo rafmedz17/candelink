@@ -174,3 +174,53 @@
     transform: none;
   }
 }
+.business-follow-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 0;
+}
+.business-profile-identity {
+  width: 100%;
+}
+.business-profile-copy {
+  flex: 1;
+  min-width: 0;
+}
+.business-profile-actions {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.business-follow-notice {
+  position: fixed;
+  z-index: 200;
+  right: 24px;
+  bottom: 24px;
+  width: min(420px, calc(100vw - 32px));
+  margin: 0;
+  box-shadow: 0 8px 30px rgb(0 0 0 / 18%);
+}
+@media (max-width: 600px) {
+  .business-profile-actions {
+    margin-left: 0;
+    align-self: flex-start;
+  }
+  .business-follow-notice {
+    right: 16px;
+    bottom: 16px;
+  }
+}
+.business-follow-hint {
+  font-size: 13px;
+  color: var(--muted);
+}
+.business-follow-actions .form-message {
+  flex-basis: 100%;
+  margin: 0;
+}
+:root .button.business-following {
+  color: var(--green);
+  background: var(--button-soft);
+  border-color: var(--button-border);
+}

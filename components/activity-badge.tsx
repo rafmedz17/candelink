@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from "react";
 import { UnreadBadge } from "./unread-badge";
+import { showToast } from "@/lib/toasts";
 
 type Counts = { messages: number; friends: number; notifications: number };
 let counts: Counts | null = null;
@@ -16,6 +17,10 @@ function subscribe(listener: () => void) {
     let pending = false;
     let requested = false;
     const controller = new AbortController();
+    let since: string | null = null;
+    let baseline: string | null = null;
+    let account: string | null = null;
+    const seen = new Set<string>();
     async function refresh() {
       if (document.visibilityState !== "visible") return;
       if (pending) {
@@ -24,12 +29,60 @@ function subscribe(listener: () => void) {
       }
       pending = true;
       try {
-        const response = await fetch("/api/account/activity", {
-          cache: "no-store",
-          signal: controller.signal,
-        });
+        const response = await fetch(
+          `/api/account/activity${since ? `?since=${encodeURIComponent(since)}` : ""}`,
+          {
+            cache: "no-store",
+            signal: controller.signal,
+          },
+        );
         const next = response.ok ? await response.json() : null;
         if (disposed) return;
+        if (next?.user_id && next?.checked_at) {
+          if (account !== next.user_id) {
+            account = next.user_id;
+            baseline = next.checked_at;
+            seen.clear();
+          } else if (Array.isArray(next.incoming_messages)) {
+            const conversations = new Map<string, number>();
+            for (const message of [...next.incoming_messages].reverse()) {
+              if (
+                !message.id ||
+                !message.friendship_id ||
+                seen.has(message.id) ||
+                !baseline ||
+                message.created_at < baseline
+              )
+                continue;
+              seen.add(message.id);
+              const current = new URL(location.href);
+              if (
+                current.pathname === "/messages" &&
+                current.searchParams.get("conversation") ===
+                  message.friendship_id
+              )
+                continue;
+              conversations.set(
+                message.friendship_id,
+                (conversations.get(message.friendship_id) || 0) + 1,
+              );
+            }
+            for (const [id, total] of conversations)
+              showToast(
+                total > 1
+                  ? `You have ${total} new messages.`
+                  : "You have a new message.",
+                "message",
+                `/messages?conversation=${id}`,
+              );
+            if (seen.size > 1000) {
+              const keep = [...seen].slice(-500);
+              seen.clear();
+              keep.forEach((id) => seen.add(id));
+            }
+          }
+          since = next.checked_at;
+        }
         counts =
           next &&
           [next.messages, next.friends, next.notifications].every(
@@ -49,7 +102,7 @@ function subscribe(listener: () => void) {
       }
     }
     void refresh();
-    const timer = setInterval(refresh, 10000);
+    const timer = setInterval(refresh, 5000);
     document.addEventListener("visibilitychange", refresh);
     window.addEventListener("focus", refresh);
     window.addEventListener("candelink:activity", refresh);

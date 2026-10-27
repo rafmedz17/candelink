@@ -131,7 +131,12 @@ export default async function AuthPage({
                 : "We’ll help you securely recover access to your account."}
           </p>
           <AuthForm
-            returnTo={p.next === "/contact" ? "/contact" : undefined}
+            returnTo={
+              p.next === "/contact" ||
+              /^\/businesses\/[0-9a-f-]{36}$/i.test(p.next || "")
+                ? p.next
+                : undefined
+            }
             mode={auth}
             role={p.role}
           />

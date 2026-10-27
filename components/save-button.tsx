@@ -2,6 +2,7 @@
 import { Bookmark, LoaderCircle } from "lucide-react";
 import { useState } from "react";
 import { mutate } from "@/app/actions";
+import { useFeedback } from "./use-feedback";
 export function SaveButton({
   id,
   initial = false,
@@ -10,8 +11,8 @@ export function SaveButton({
   initial?: boolean;
 }) {
   const [saved, setSaved] = useState(initial),
-    [pending, setPending] = useState(false),
-    [message, setMessage] = useState("");
+    [pending, setPending] = useState(false);
+  const [, setResult] = useFeedback();
   return (
     <div className="save-wrap">
       <button
@@ -24,10 +25,20 @@ export function SaveButton({
           setPending(true);
           try {
             const result = await mutate("save", { id, remove: saved });
-            if (result.ok) setSaved(!saved);
-            else setMessage(result.message);
+            if (result.ok) {
+              setSaved(!saved);
+              setResult({
+                ok: true,
+                message: saved
+                  ? "Job removed from saved opportunities."
+                  : "Job saved to your opportunities.",
+              });
+            } else setResult(result);
           } catch {
-            setMessage("We couldn't update your saved jobs. Please try again.");
+            setResult({
+              ok: false,
+              message: "We couldn't update your saved jobs. Please try again.",
+            });
           } finally {
             setPending(false);
           }
@@ -39,14 +50,6 @@ export function SaveButton({
           <Bookmark size={19} fill={saved ? "currentColor" : "none"} />
         )}
       </button>
-      {message && (
-        <div className="save-message" role="status">
-          {message}
-          <button onClick={() => setMessage("")} aria-label="Dismiss">
-            ×
-          </button>
-        </div>
-      )}
     </div>
   );
 }

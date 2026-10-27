@@ -2998,7 +2998,9 @@ test("deleted owners leave no orphan business or verification records; shared an
       /permission denied/,
     ),
   );
-  await db.query("select set_config('request.jwt.claim.sub',$1,false)",[ids.jobCleanupAdmin]);
+  await db.query("select set_config('request.jwt.claim.sub',$1,false)", [
+    ids.jobCleanupAdmin,
+  ]);
   await db.query("delete from auth.users where id=$1", [ids.orphanCoowner]);
   assert.equal(
     (await db.query("select id from public.businesses where id=$1", [shared]))
@@ -3018,4 +3020,350 @@ test("deleted owners leave no orphan business or verification records; shared an
     ).rows[0].removed,
     true,
   );
+});
+
+test("jobseekers can privately follow businesses and receive one linked alert per new published job", async () => {
+  ids.followOwner = "96000000-0000-4000-8000-000000000001";
+  ids.followSeeker = "96000000-0000-4000-8000-000000000002";
+  ids.followSuspended = "96000000-0000-4000-8000-000000000003";
+  ids.followOther = "96000000-0000-4000-8000-000000000004";
+  for (const key of [
+    "followOwner",
+    "followSeeker",
+    "followSuspended",
+    "followOther",
+  ])
+    await db.query(
+      "insert into auth.users(id,raw_user_meta_data) values($1,$2)",
+      [
+        ids[key],
+        JSON.stringify({
+          full_name: key,
+          account_type: key === "followOwner" ? "business_owner" : "jobseeker",
+        }),
+      ],
+    );
+  const bid = (
+    await db.query(
+      "insert into public.businesses(name,description,category,address) values('Followed team','A team for follow notification testing','Services','Candelaria') returning id",
+    )
+  ).rows[0].id;
+  await db.query(
+    "insert into public.business_members(business_id,user_id) values($1,$2)",
+    [bid, ids.followOwner],
+  );
+  const follow = (who, value) =>
+    as(who, () =>
+      db.query("select public.follow_business($1,$2) as following", [
+        bid,
+        value,
+      ]),
+    );
+  await as("anon", () =>
+    assert.rejects(
+      db.query("select public.follow_business($1,true)", [bid]),
+      /permission denied/,
+    ),
+  );
+  await assert.rejects(
+    follow("followOwner", true),
+    /Jobseeker access required/,
+  );
+  await assert.rejects(follow("followSeeker", true), /Business unavailable/);
+  await db.query(
+    "update public.businesses set verification_status='verified' where id=$1",
+    [bid],
+  );
+  async function job(status) {
+    return (
+      await db.query(
+        "insert into public.jobs(business_id,title,description,employment_type,arrangement,location,category,status) values($1,'Local team assistant','Hiring','Full-time','On-site','Candelaria','Services',$2) returning id",
+        [bid, status],
+      )
+    ).rows[0].id;
+  }
+  const oldJob = await job("published");
+  await follow("followSeeker", true);
+  await follow("followSeeker", true);
+  await follow("followSuspended", true);
+  await db.query("update public.profiles set suspended=true where id=$1", [
+    ids.followSuspended,
+  ]);
+  assert.equal(
+    (
+      await db.query(
+        "select count(*)::int as count from private.business_follows where business_id=$1 and user_id=$2",
+        [bid, ids.followSeeker],
+      )
+    ).rows[0].count,
+    1,
+  );
+  await as("followSeeker", async () => {
+    assert.equal(
+      (
+        await db.query("select public.business_follow_state($1) as following", [
+          bid,
+        ])
+      ).rows[0].following,
+      true,
+    );
+    await assert.rejects(
+      db.query("select * from private.business_follows"),
+      /permission denied/,
+    );
+  });
+  assert.equal(
+    (
+      await db.query("select id from public.notifications where job_id=$1", [
+        oldJob,
+      ])
+    ).rows.length,
+    0,
+  );
+  const draft = await job("draft");
+  assert.equal(
+    (
+      await db.query("select id from public.notifications where job_id=$1", [
+        draft,
+      ])
+    ).rows.length,
+    0,
+  );
+  await db.query("update public.jobs set status='published' where id=$1", [
+    draft,
+  ]);
+  const alerts = (
+    await db.query(
+      "select user_id,title,body,job_id from public.notifications where job_id=$1",
+      [draft],
+    )
+  ).rows;
+  assert.equal(alerts.length, 1);
+  assert.equal(alerts[0].user_id, ids.followSeeker);
+  assert.match(alerts[0].title, /Followed team/);
+  assert.match(alerts[0].body, /Local team assistant/);
+  await db.query("update public.jobs set title='Updated title' where id=$1", [
+    draft,
+  ]);
+  await db.query("update public.jobs set status='closed' where id=$1", [draft]);
+  await db.query("update public.jobs set status='published' where id=$1", [
+    draft,
+  ]);
+  assert.equal(
+    (
+      await db.query("select id from public.notifications where job_id=$1", [
+        draft,
+      ])
+    ).rows.length,
+    1,
+  );
+  await as("followOther", async () => {
+    assert.equal(
+      (
+        await db.query("select id from public.notifications where job_id=$1", [
+          draft,
+        ])
+      ).rows.length,
+      0,
+    );
+  });
+  await follow("followSeeker", false);
+  const unfollowed = await job("published");
+  assert.equal(
+    (
+      await db.query("select id from public.notifications where job_id=$1", [
+        unfollowed,
+      ])
+    ).rows.length,
+    0,
+  );
+  await follow("followSeeker", true);
+  const next = await job("published");
+  assert.equal(
+    (
+      await db.query("select id from public.notifications where job_id=$1", [
+        next,
+      ])
+    ).rows.length,
+    1,
+  );
+  await db.query(
+    "update public.profiles set role='business_owner' where id=$1",
+    [ids.followSeeker],
+  );
+  const changedRole = await job("published");
+  assert.equal(
+    (
+      await db.query("select id from public.notifications where job_id=$1", [
+        changedRole,
+      ])
+    ).rows.length,
+    0,
+  );
+  await assert.rejects(
+    follow("followSuspended", true),
+    /Jobseeker access required/,
+  );
+  const notification = (
+    await db.query("select id from public.notifications where job_id=$1", [
+      next,
+    ])
+  ).rows[0].id;
+  await db.query("delete from public.jobs where id=$1", [next]);
+  assert.equal(
+    (
+      await db.query("select job_id from public.notifications where id=$1", [
+        notification,
+      ])
+    ).rows[0].job_id,
+    null,
+  );
+  await db.query("delete from public.businesses where id=$1", [bid]);
+  assert.equal(
+    (
+      await db.query(
+        "select user_id from private.business_follows where business_id=$1",
+        [bid],
+      )
+    ).rows.length,
+    0,
+  );
+});
+
+test("business edits preserve admin verification and published jobs without allowing self-approval", async () => {
+  ids.editVerifiedOwner = "98000000-0000-4000-8000-000000000001";
+  ids.editVerifiedAdmin = "98000000-0000-4000-8000-000000000002";
+  for (const key of ["editVerifiedOwner", "editVerifiedAdmin"])
+    await db.query(
+      "insert into auth.users(id,raw_user_meta_data) values($1,$2)",
+      [
+        ids[key],
+        JSON.stringify({ full_name: key, account_type: "business_owner" }),
+      ],
+    );
+  await db.query("update public.profiles set role='admin' where id=$1", [
+    ids.editVerifiedAdmin,
+  ]);
+  const details = {
+    name: "Verified edit team",
+    description: "A local team testing verified profile edits",
+    category: "Services",
+    address: "Candelaria",
+    contact_email: "team@example.com",
+    operating_details: "Weekdays",
+  };
+  const bid = (
+    await as("editVerifiedOwner", () =>
+      db.query("select public.create_business($1) as id", [
+        JSON.stringify(details),
+      ]),
+    )
+  ).rows[0].id;
+  async function edit(extra = {}) {
+    return as("editVerifiedOwner", () =>
+      db.query("select public.update_business($1,$2)", [
+        JSON.stringify({ ...details, ...extra }),
+        bid,
+      ]),
+    );
+  }
+  await edit({ name: "Pending edit", verification_status: "verified" });
+  assert.equal(
+    (
+      await db.query(
+        "select verification_status from public.businesses where id=$1",
+        [bid],
+      )
+    ).rows[0].verification_status,
+    "pending",
+  );
+  await as("editVerifiedAdmin", () =>
+    db.query("select public.moderate($1,'business','verified','Approved')", [
+      bid,
+    ]),
+  );
+  const job = (
+    await as("editVerifiedOwner", () =>
+      db.query(
+        "insert into public.jobs(business_id,title,description,employment_type,arrangement,location,category,status) values($1,'Verified edit role','Hiring','Full-time','On-site','Candelaria','Services','published') returning id",
+        [bid],
+      ),
+    )
+  ).rows[0].id;
+  await edit({
+    name: "Updated verified team",
+    description: "Updated details for a verified business",
+    category: "Retail",
+    address: "New address",
+    operating_details: "Every day",
+    contact_email: "updated@example.com",
+    verification_status: "suspended",
+  });
+  const business = (
+    await db.query(
+      "select name,verification_status,operating_details from public.businesses where id=$1",
+      [bid],
+    )
+  ).rows[0];
+  assert.equal(business.name, "Updated verified team");
+  assert.equal(business.verification_status, "verified");
+  assert.equal(business.operating_details, "Every day");
+  assert.equal(
+    (await db.query("select status from public.jobs where id=$1", [job]))
+      .rows[0].status,
+    "published",
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select contact_email from public.business_contacts where business_id=$1",
+        [bid],
+      )
+    ).rows[0].contact_email,
+    "updated@example.com",
+  );
+  await as("anon", () =>
+    assert.rejects(
+      db.query("select public.update_business($1,$2)", [
+        JSON.stringify(details),
+        bid,
+      ]),
+      /permission denied/,
+    ),
+  );
+  await as("editVerifiedAdmin", () =>
+    assert.rejects(
+      db.query("select public.update_business($1,$2)", [
+        JSON.stringify(details),
+        bid,
+      ]),
+      /Business owner required/,
+    ),
+  );
+  for (const decision of ["rejected", "suspended"]) {
+    await as("editVerifiedAdmin", () =>
+      db.query("select public.moderate($1,'business',$2,'Admin decision')", [
+        bid,
+        decision,
+      ]),
+    );
+    await edit({ verification_status: "verified" });
+    const row = (
+      await db.query(
+        "select verification_status,moderation_reason from public.businesses where id=$1",
+        [bid],
+      )
+    ).rows[0];
+    assert.equal(row.verification_status, decision);
+    assert.equal(row.moderation_reason, "Admin decision");
+    assert.equal(
+      (await db.query("select status from public.jobs where id=$1", [job]))
+        .rows[0].status,
+      "closed",
+    );
+  }
+  await db.query("update public.profiles set suspended=true where id=$1", [
+    ids.editVerifiedOwner,
+  ]);
+  await assert.rejects(edit(), /Business owner required/);
 });

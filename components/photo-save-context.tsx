@@ -1,4 +1,5 @@
 "use client";
+import { useErrorFeedback } from "./use-feedback";
 import {
   createContext,
   useCallback,
@@ -25,7 +26,7 @@ export function PhotoSaveProvider({ children }: { children: React.ReactNode }) {
   const [formsDirty, setFormsDirty] = useState(false);
   const [destination, setDestination] = useState<string | null>(null);
   const [leaving, setLeaving] = useState(false);
-  const [error, setError] = useState("");
+  const setError = useErrorFeedback();
   const allowLeave = useRef(false);
   const dialog = useRef<HTMLDialogElement>(null);
   const tasks = useRef(new Map<string, Task>());
@@ -108,7 +109,7 @@ export function PhotoSaveProvider({ children }: { children: React.ReactNode }) {
       document.removeEventListener("click", click, true);
       navigation?.removeEventListener("navigate", historyNavigate);
     };
-  }, [hasChanges]);
+  }, [hasChanges, setError]);
   useEffect(() => {
     if (destination && !dialog.current?.open) dialog.current?.showModal();
     else if (!destination) dialog.current?.close();
@@ -170,11 +171,7 @@ export function PhotoSaveProvider({ children }: { children: React.ReactNode }) {
       >
         <h2 id="unsaved-title">Save your changes?</h2>
         <p>You have unsaved changes. Save them before leaving this page?</p>
-        {error && (
-          <p role="alert" className="form-message error">
-            {error}
-          </p>
-        )}
+
         <div className="photo-crop-actions">
           <button
             type="button"

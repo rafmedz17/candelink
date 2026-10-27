@@ -1,5 +1,6 @@
 "use client";
 
+import { useFeedback } from "./use-feedback";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { LocateFixed, MapPin, Trash2 } from "lucide-react";
@@ -24,7 +25,7 @@ export function BusinessLocationPicker({
   const [focus, setFocus] = useState<Coordinates | null>(null);
   const [pending, setPending] = useState(false);
   const [locating, setLocating] = useState(false);
-  const [result, setResult] = useState<Result | null>(null);
+  const [, setResult] = useFeedback<Result>();
   const point = useMemo(() => {
     if (!lat || !lng) return null;
     const p = mapLocationSchema.safeParse({
@@ -189,14 +190,6 @@ export function BusinessLocationPicker({
         Confirm the pin is at your business before saving. It will be public
         when your business is verified and has an open published job.
       </p>
-      {result && (
-        <p
-          className={`form-message ${result.ok ? "" : "error"}`}
-          role={result.ok ? "status" : "alert"}
-        >
-          {result.message}
-        </p>
-      )}
     </section>
   );
 }

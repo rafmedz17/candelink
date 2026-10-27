@@ -2525,7 +2525,7 @@ td::before {
   min-height: 340px;
   display: flex;
   align-items: end;
-  padding-bottom: 80px;
+  padding-bottom: clamp(24px, 4vw, 48px);
   color: #fff;
   background: #143c2b;
 }

@@ -6,6 +6,7 @@ import { ActionForm } from "@/components/forms";
 import { samples } from "@/lib/business-samples";
 import { supabase } from "@/lib/supabase/server";
 import { getJobs } from "@/lib/data";
+import { BusinessFollowButton } from "@/components/business-follow-button";
 export default async function BusinessDetail({
   params,
 }: {
@@ -24,6 +25,18 @@ export default async function BusinessDetail({
         .single()
     : { data: samples.find((b) => b.id === id) };
   if (!b) notFound();
+  const user = db ? (await db.auth.getUser()).data.user : null;
+  const { data: viewer } = user
+    ? await db!
+        .from("profiles")
+        .select("role,suspended")
+        .eq("id", user.id)
+        .maybeSingle()
+    : { data: null };
+  const followState =
+    viewer?.role === "jobseeker" && !viewer.suspended
+      ? await db!.rpc("business_follow_state", { bid: id })
+      : null;
   const { jobs, demo } = await getJobs(100, db ? id : undefined);
   const listings = jobs.filter((j) =>
     db ? j.business_id === id : j.company === b.name,
@@ -34,6 +47,19 @@ export default async function BusinessDetail({
       <main id="main-content" className="page-bg business-detail-page">
         <div className="container">
           <BusinessProfileHero
+            actions={
+              db &&
+              (!user ||
+                (viewer?.role === "jobseeker" && !viewer.suspended)) && (
+                <BusinessFollowButton
+                  key={id}
+                  businessId={id}
+                  loggedIn={Boolean(user)}
+                  following={Boolean(followState?.data)}
+                  unavailable={Boolean(followState?.error)}
+                />
+              )
+            }
             name={b.name}
             category={db ? b.category : "FICTIONAL SAMPLE BUSINESS"}
             address={b.address}

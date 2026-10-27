@@ -10,7 +10,7 @@ export function ContactAdminForm() {
   const router = useRouter();
   const [content, setContent] = useState("");
   const [pending, setPending] = useState(false);
-  const [result, setResult] = useFeedback();
+  const [, setResult] = useFeedback();
   const attempt = useRef<{ id: string; content: string } | null>(null);
   return (
     <form
@@ -61,14 +61,7 @@ export function ContactAdminForm() {
         {content.length}/4000 characters. Replies will arrive in your Messages
         inbox.
       </small>
-      {result && (
-        <p
-          className={`form-message ${result.ok ? "" : "error"}`}
-          role={result.ok ? "status" : "alert"}
-        >
-          {result.message}
-        </p>
-      )}
+
       <button className="button" disabled={pending || !content.trim()}>
         <Send size={17} aria-hidden="true" />
         {pending ? "Sending..." : "Send to admin"}

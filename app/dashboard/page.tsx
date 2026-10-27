@@ -264,6 +264,11 @@ export default async function Dashboard({
                 <div>
                   <strong>{n.title}</strong>
                   <p>{n.body}</p>
+                  {n.job_id && (
+                    <Link className="text-link" href={`/jobs/${n.job_id}`}>
+                      View opportunity →
+                    </Link>
+                  )}
                 </div>
                 {!n.read && (
                   <QuickAction

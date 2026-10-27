@@ -31,7 +31,7 @@ type Field = {
 };
 export function PrivateCvUpload({ hasCv }: { hasCv: boolean }) {
   const router = useRouter();
-  const [result, setResult] = useFeedback();
+  const [, setResult] = useFeedback();
   const [pending, setPending] = useState(false);
   return (
     <section className="panel">
@@ -96,14 +96,6 @@ export function PrivateCvUpload({ hasCv }: { hasCv: boolean }) {
           Delete CV
         </Button>
       )}
-      {result && (
-        <p
-          className={`form-message ${result.ok ? "" : "error"}`}
-          role={result.ok ? "status" : "alert"}
-        >
-          {result.message}
-        </p>
-      )}
     </section>
   );
 }
@@ -115,7 +107,7 @@ export function PhotoUpload({
   businessId?: string;
 }) {
   const router = useRouter();
-  const [result, setResult] = useFeedback();
+  const [, setResult] = useFeedback();
   const [pending, setPending] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState<File | null>(null);
   const [draft, setDraft] = useState<File | null>(null);
@@ -274,14 +266,6 @@ export function PhotoUpload({
           <Trash2 size={18} aria-hidden="true" />
         </Button>
       )}
-      {result && (
-        <p
-          className={`form-message ${result.ok ? "" : "error"}`}
-          role={result.ok ? "status" : "alert"}
-        >
-          {result.message}
-        </p>
-      )}
     </div>
   );
 }
@@ -293,7 +277,7 @@ export function ProfileVisibility({
   isPublic: boolean;
 }) {
   const router = useRouter();
-  const [result, setResult] = useFeedback();
+  const [, setResult] = useFeedback();
   const [pending, setPending] = useState(false);
   return (
     <section className="profile-visibility panel">
@@ -369,14 +353,6 @@ export function ProfileVisibility({
               : "Make profile public"}
         </Button>
       </div>
-      {result && (
-        <p
-          className={`form-message ${result.ok ? "" : "error"}`}
-          role={result.ok ? "status" : "alert"}
-        >
-          {result.message}
-        </p>
-      )}
     </section>
   );
 }
@@ -416,7 +392,7 @@ export function ActionForm({
     "application-status",
     "moderate",
   ].includes(kind);
-  const [result, setResult] = useFeedback();
+  const [, setResult] = useFeedback();
   async function saveValues(values: Record<string, string>) {
     if (requiresChanges && !isDirty && !photosDirty) return;
     setResult(null);
@@ -487,14 +463,7 @@ export function ActionForm({
           )}
         </label>
       ))}
-      {result && (
-        <p
-          role={result.ok ? "status" : "alert"}
-          className={`form-message ${result.ok ? "" : "error"}`}
-        >
-          {result.message}
-        </p>
-      )}
+
       <Button
         disabled={saving || (requiresChanges && !isDirty && !photosDirty)}
       >
@@ -510,7 +479,7 @@ export function AuthForm({
 }: {
   mode: string;
   role?: string;
-  returnTo?: "/contact";
+  returnTo?: string;
 }) {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
@@ -519,7 +488,7 @@ export function AuthForm({
     handleSubmit,
     formState: { isSubmitting },
   } = useForm<Record<string, string>>();
-  const [result, setResult] = useFeedback();
+  const [, setResult] = useFeedback();
   return (
     <form
       className="form-stack auth-stack"
@@ -644,14 +613,7 @@ export function AuthForm({
           </span>
         </label>
       )}
-      {result && (
-        <div
-          className={`form-message ${result.ok ? "" : "error"}`}
-          role={result.ok ? "status" : "alert"}
-        >
-          {result.message}
-        </div>
-      )}
+
       <Button disabled={isSubmitting}>
         {isSubmitting
           ? "Please wait…"
@@ -668,7 +630,7 @@ export function AuthForm({
 export function ApplyForm({ id, sample }: { id: string; sample: boolean }) {
   const [path, setPath] = useState("");
   const [fileName, setFileName] = useState("");
-  const [result, setResult] = useFeedback();
+  const [, setResult] = useFeedback();
   const [pending, setPending] = useState(false);
   return (
     <div className="form-stack application-form">
@@ -719,14 +681,7 @@ export function ApplyForm({ id, sample }: { id: string; sample: boolean }) {
               <span>{fileName}</span>
             </div>
           )}
-          {result && (
-            <p
-              className={`form-message ${result.ok ? "" : "error"}`}
-              role={result.ok ? "status" : "alert"}
-            >
-              {result.message}
-            </p>
-          )}
+
           {path && (
             <ActionForm
               kind="apply"
@@ -761,7 +716,7 @@ export function QuickAction({
   confirm?: boolean;
 }) {
   const router = useRouter();
-  const [result, setResult] = useFeedback();
+  const [, setResult] = useFeedback();
   const [pending, setPending] = useState(false);
   return (
     <div>
@@ -794,20 +749,12 @@ export function QuickAction({
       >
         {pending ? "Working…" : label}
       </Button>
-      {result && (
-        <p
-          className={`form-message ${result.ok ? "" : "error"}`}
-          role={result.ok ? "status" : "alert"}
-        >
-          {result.message}
-        </p>
-      )}
     </div>
   );
 }
 export function CvButton({ id }: { id: string }) {
   const [link, setLink] = useState("");
-  const [result, setResult] = useFeedback();
+  const [, setResult] = useFeedback();
   return (
     <div>
       <Button
@@ -833,14 +780,6 @@ export function CvButton({ id }: { id: string }) {
           {" "}
           Open private PDF
         </a>
-      )}
-      {result && (
-        <p
-          className={`form-message ${result.ok ? "" : "error"}`}
-          role={result.ok ? "status" : "alert"}
-        >
-          {result.message}
-        </p>
       )}
     </div>
   );

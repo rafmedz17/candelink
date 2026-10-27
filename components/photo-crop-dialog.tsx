@@ -1,4 +1,5 @@
 "use client";
+import { useErrorFeedback } from "./use-feedback";
 
 import { useEffect, useRef, useState } from "react";
 
@@ -24,7 +25,7 @@ export function PhotoCropDialog({
   const [image, setImage] = useState<HTMLImageElement | null>(null);
   const [zoom, setZoom] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
-  const [error, setError] = useState("");
+  const setError = useErrorFeedback();
   const [exporting, setExporting] = useState(false);
   const busy = pending || exporting;
 
@@ -41,7 +42,7 @@ export function PhotoCropDialog({
       URL.revokeObjectURL(url);
       element.close();
     };
-  }, [file]);
+  }, [file, setError]);
 
   function draw(context: CanvasRenderingContext2D, size: number) {
     if (!image) return;
@@ -185,11 +186,7 @@ export function PhotoCropDialog({
           />
         </label>
       </div>
-      {error && (
-        <p role="alert" className="form-message error">
-          {error}
-        </p>
-      )}
+
       <div className="photo-crop-actions">
         <button
           type="button"

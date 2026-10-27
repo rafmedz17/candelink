@@ -10,6 +10,8 @@ import "./social.css";
 import "leaflet/dist/leaflet.css";
 import "./maps.css";
 import "./buttons.css";
+import { ToastViewport } from "@/components/toast-viewport";
+import "./toasts.css";
 
 export const metadata: Metadata = {
   title: "CANDELINK | Where Candelaria Connects.",
@@ -37,6 +39,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           Skip to content
         </a>
         {children}
+        <ToastViewport />
       </body>
     </html>
   );

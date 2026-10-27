@@ -17,7 +17,7 @@ export function DeleteUserButton({
   const [open, setOpen] = useState(false);
   const [confirmation, setConfirmation] = useState("");
   const [pending, setPending] = useState(false);
-  const [result, setResult] = useFeedback<Result>();
+  const [, setResult] = useFeedback<Result>();
   return (
     <div className="delete-user-control">
       {!open ? (
@@ -87,14 +87,6 @@ export function DeleteUserButton({
             </button>
           </div>
         </form>
-      )}
-      {result && (
-        <p
-          className={`form-message ${result.ok ? "" : "error"}`}
-          role={result.ok ? "status" : "alert"}
-        >
-          {result.message}
-        </p>
       )}
     </div>
   );
