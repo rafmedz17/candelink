@@ -2,7 +2,7 @@
 import { supabase } from "@/lib/supabase/server";
 import {
   businessSchema,
-  credentials,
+  registrationCredentials,
   loginCredentials,
   jobSchema,
   profileSchema,
@@ -50,8 +50,8 @@ async function runAuth(
     };
   }
   if (mode === "reset-password") {
-    if (values.password.length < 10)
-      return { ok: false, message: "Use at least 10 characters." };
+    if (values.password.length < 8)
+      return { ok: false, message: "Use at least 8 characters." };
     const { error } = await db.auth.updateUser({ password: values.password });
     return {
       ok: !error,
@@ -61,9 +61,9 @@ async function runAuth(
       url: error ? undefined : "/dashboard",
     };
   }
-  const parsed = (mode === "login" ? loginCredentials : credentials).safeParse(
-    values,
-  );
+  const parsed = (
+    mode === "login" ? loginCredentials : registrationCredentials
+  ).safeParse(values);
   if (!parsed.success)
     return { ok: false, message: parsed.error.issues[0].message };
   const { email, password, name, role } = parsed.data;
@@ -86,13 +86,21 @@ async function runAuth(
           ? "Registration could not be completed. Check your details or try again later."
           : "We couldn’t sign you in. Check your email and password.",
     };
+  if (mode === "register") {
+    // With email confirmation disabled Supabase returns a signed-in session.
+    // Remove this session so registration always ends at the login screen.
+    await db.auth.signOut({ scope: "local" });
+    revalidatePath("/", "layout");
+    return {
+      ok: true,
+      message: "Account created successfully. Please log in.",
+      url: "/login",
+    };
+  }
   return {
     ok: true,
-    message:
-      mode === "register"
-        ? "Check your email to confirm your account before signing in."
-        : "Welcome back.",
-    url: mode === "register" ? undefined : "/dashboard",
+    message: "Welcome back.",
+    url: "/dashboard",
   };
 }
 export async function logout() {

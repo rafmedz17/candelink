@@ -1,7 +1,7 @@
 import { z } from "zod";
 export const credentials = z.object({
   email: z.email(),
-  password: z.string().min(10, "Use at least 10 characters.").max(128),
+  password: z.string().min(8, "Use at least 8 characters.").max(128),
   name: z.string().max(100).optional(),
   role: z.enum(["jobseeker", "business_owner"]).optional(),
 });
@@ -9,6 +9,14 @@ export const credentials = z.object({
 export const loginCredentials = credentials.extend({
   password: z.string().min(1, "Enter your password.").max(128),
 });
+export const registrationCredentials = credentials
+  .extend({
+    confirm_password: z.string().min(1, "Confirm your password.").max(128),
+  })
+  .refine((value) => value.password === value.confirm_password, {
+    message: "Passwords do not match.",
+    path: ["confirm_password"],
+  });
 export const profileSchema = z.object({
   full_name: z.string().min(2).max(100),
   headline: z.string().max(150),

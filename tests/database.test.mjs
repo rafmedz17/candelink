@@ -3,6 +3,10 @@ import assert from "node:assert/strict";
 import { PGlite } from "@electric-sql/pglite";
 import { readFile, readdir } from "node:fs/promises";
 import { jobSchema, mapLocationSchema } from "../lib/validation.ts";
+import {
+  registrationCredentials,
+  loginCredentials,
+} from "../lib/validation.ts";
 import { createMessageId } from "../lib/social.ts";
 const db = new PGlite();
 const ids = {
@@ -3366,4 +3370,53 @@ test("business edits preserve admin verification and published jobs without allo
     ids.editVerifiedOwner,
   ]);
   await assert.rejects(edit(), /Business owner required/);
+});
+
+test("registration requires matching confirmation without changing legacy login passwords", () => {
+  const values = {
+    email: "test@example.com",
+    password: "A-long-password1",
+    confirm_password: "A-long-password1",
+    name: "Test Member",
+    role: "jobseeker",
+  };
+  assert.equal(registrationCredentials.safeParse(values).success, true);
+  assert.equal(
+    registrationCredentials.safeParse({
+      ...values,
+      password: "12345678",
+      confirm_password: "12345678",
+    }).success,
+    true,
+  );
+  assert.equal(
+    registrationCredentials.safeParse({
+      ...values,
+      password: "1234567",
+      confirm_password: "1234567",
+    }).success,
+    false,
+  );
+  for (const confirm_password of [undefined, "", "Another-password1"]) {
+    assert.equal(
+      registrationCredentials.safeParse({ ...values, confirm_password })
+        .success,
+      false,
+    );
+  }
+  assert.equal(
+    registrationCredentials.safeParse({
+      ...values,
+      password: "short",
+      confirm_password: "short",
+    }).success,
+    false,
+  );
+  assert.equal(
+    loginCredentials.safeParse({
+      email: "test@example.com",
+      password: "legacy",
+    }).success,
+    true,
+  );
 });

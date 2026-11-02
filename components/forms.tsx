@@ -483,6 +483,7 @@ export function AuthForm({
 }) {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
   const {
     register,
     handleSubmit,
@@ -493,11 +494,20 @@ export function AuthForm({
     <form
       className="form-stack auth-stack"
       onSubmit={handleSubmit(async (values) => {
+        if (
+          mode === "register" &&
+          values.password !== values.confirm_password
+        ) {
+          setResult({ ok: false, message: "Passwords do not match." });
+          return;
+        }
         try {
           const r = await authAction(mode, values);
           setResult(r);
-          if (r.url)
+          if (r.url) {
             router.push(mode === "login" && returnTo ? returnTo : r.url);
+            router.refresh();
+          }
         } catch {
           setResult({
             ok: false,
@@ -577,13 +587,13 @@ export function AuthForm({
               }
               {...register("password", {
                 required: true,
-                minLength: mode === "login" ? 1 : 10,
+                minLength: mode === "login" ? 1 : 8,
               })}
-              minLength={mode === "login" ? 1 : 10}
+              minLength={mode === "login" ? 1 : 8}
               placeholder={
                 mode === "login"
                   ? "Enter your password"
-                  : "At least 10 characters"
+                  : "At least 8 characters"
               }
             />
             <button
@@ -599,9 +609,46 @@ export function AuthForm({
           </div>
           {mode !== "login" && (
             <small className="field-help">
-              Use at least 10 characters to protect your account.
+              Use at least 8 characters to protect your account.
             </small>
           )}
+        </div>
+      )}
+      {mode === "register" && (
+        <div className="auth-field password-field">
+          <label className="password-label" htmlFor="auth-confirm-password">
+            Confirm password
+          </label>
+          <div className="password-control">
+            <input
+              id="auth-confirm-password"
+              type={showConfirmation ? "text" : "password"}
+              autoComplete="new-password"
+              {...register("confirm_password", {
+                required: true,
+                minLength: 8,
+                maxLength: 128,
+              })}
+              required
+              minLength={8}
+              maxLength={128}
+              placeholder="Enter your password again"
+            />
+            <button
+              type="button"
+              className="password-toggle"
+              aria-controls="auth-confirm-password"
+              aria-label={
+                showConfirmation
+                  ? "Hide confirmed password"
+                  : "Show confirmed password"
+              }
+              aria-pressed={showConfirmation}
+              onClick={() => setShowConfirmation((value) => !value)}
+            >
+              {showConfirmation ? "Hide" : "Show"}
+            </button>
+          </div>
         </div>
       )}
       {mode === "register" && (

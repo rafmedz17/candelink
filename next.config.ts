@@ -1,8 +1,19 @@
 import type { NextConfig } from "next";
+import { networkInterfaces } from "node:os";
+
+// DHCP can change the computer's address between phone-testing sessions.
+const lanHosts = Object.values(networkInterfaces())
+  .flatMap((addresses) => addresses ?? [])
+  .filter(
+    ({ family, internal, address }) =>
+      family === "IPv4" &&
+      !internal &&
+      /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(address),
+  )
+  .map(({ address }) => address);
 
 const nextConfig: NextConfig = {
-  // Allow the LAN hostname used to test the app on a phone.
-  allowedDevOrigins: ["192.168.1.14"],
+  allowedDevOrigins: [...new Set(lanHosts)],
   experimental: {
     agentFeedback: true,
     serverActions: { bodySizeLimit: "6mb" },
