@@ -143,12 +143,12 @@ export async function Header() {
                 Messages
                 <ActivityBadge kind="messages" />
               </Link>
-              {profile?.role !== "admin" && (
+              {
                 <Link href={`${dashboardHref}?tab=notifications`}>
                   <Bell size={15} aria-hidden="true" /> Notifications
                   <ActivityBadge kind="notifications" />
                 </Link>
-              )}
+              }
               <div className="account-mobile-links">
                 <Link href="/jobs">Find a job</Link>
                 <Link href="/businesses">Local businesses</Link>

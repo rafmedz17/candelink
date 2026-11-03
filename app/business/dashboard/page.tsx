@@ -1,4 +1,7 @@
 import Link from "next/link";
+import Image from "next/image";
+import { Store, Plus, Pencil, ArrowUpRight } from "lucide-react";
+import { DeleteBusinessButton } from "@/components/delete-business-button";
 import { requireAccount } from "@/lib/access";
 import { DashboardLayout, SetupNeeded, Stats } from "@/components/dashboard";
 import { PageTitle } from "@/components/site";
@@ -33,36 +36,61 @@ export default async function BusinessDashboard({
   if (!a) return <SetupNeeded role="business_owner" />;
   const p = await searchParams;
   const tab = p.tab || "overview";
-  const { data: businesses } = await a.db
+  const { data: businesses, error: businessError } = await a.db
     .from("businesses")
-    .select(
-      "*, business_members!inner(user_id), business_contacts(contact_email)",
-    )
+    .select("*, business_members!inner(user_id)")
     .eq("business_members.user_id", a.user.id)
     .order("created_at");
-  const b = businesses?.find((b) => b.id === p.business) || businesses?.[0];
-  const { data: jobs } = b
-    ? await a.db
-        .from("jobs")
-        .select("*")
-        .eq("business_id", b.id)
-        .order("created_at", { ascending: false })
-    : { data: [] };
-  const { data: apps } = b
-    ? await a.db
-        .from("applications")
-        .select(
-          "*,jobs!inner(title,business_id),profiles!applications_applicant_id_fkey(full_name,headline,skills,education,experience),applicant_notes(note)",
-        )
-        .eq("jobs.business_id", b.id)
-        .order("created_at", { ascending: false })
-    : { data: [] };
-  const { data: notifications } = await a.db
-    .from("notifications")
-    .select("*")
-    .eq("user_id", a.user.id)
-    .order("created_at", { ascending: false })
-    .limit(50);
+  if (businessError)
+    throw new Error("Your businesses could not be loaded. Please try again.");
+  const creating = tab === "new-business";
+  const directory = tab === "overview" && !p.business;
+  const b =
+    creating || directory
+      ? undefined
+      : p.business
+        ? businesses?.find((x) => x.id === p.business)
+        : businesses?.[0];
+  if (p.business && !b && !creating)
+    return (
+      <DashboardLayout role="business_owner">
+        <PageTitle
+          eyebrow="YOUR BUSINESS WORKSPACE"
+          title="Business unavailable"
+          description="Choose one of your businesses to continue."
+        />
+        <Link className="button" href="/business/dashboard">
+          My businesses
+        </Link>
+      </DashboardLayout>
+    );
+  const { data: jobs } =
+    b && (["overview", "jobs", "new-job"].includes(tab) || p.edit)
+      ? await a.db
+          .from("jobs")
+          .select("*")
+          .eq("business_id", b.id)
+          .order("created_at", { ascending: false })
+      : { data: [] };
+  const { data: apps } =
+    b && ["overview", "applicants"].includes(tab)
+      ? await a.db
+          .from("applications")
+          .select(
+            "*,jobs!inner(title,business_id),profiles!applications_applicant_id_fkey(full_name,headline,skills,education,experience),applicant_notes(note)",
+          )
+          .eq("jobs.business_id", b.id)
+          .order("created_at", { ascending: false })
+      : { data: [] };
+  const { data: notifications } =
+    tab === "notifications"
+      ? await a.db
+          .from("notifications")
+          .select("*")
+          .eq("user_id", a.user.id)
+          .order("created_at", { ascending: false })
+          .limit(50)
+      : { data: [] };
   const edit = jobs?.find((j) => j.id === p.edit);
   const dashboardHref = (
     nextTab: string,
@@ -83,14 +111,14 @@ export default async function BusinessDashboard({
     <DashboardLayout role="business_owner" active={tab} businessId={b?.id}>
       <PageTitle
         eyebrow="LOCAL TALENT. YOUR NEXT GREAT TEAM."
-        title={b ? b.name : "Let’s introduce your business."}
+        title={creating ? "Add a business" : b ? b.name : "Your businesses"}
         description={
           b
             ? `Verification: ${b.verification_status}. Manage your profile and build your team.`
-            : "Start with a business profile, then request administrator verification."
+            : "Manage each business, build your teams, and grow locally."
         }
       />
-      {businesses && businesses.length > 1 && (
+      {!directory && !creating && businesses && businesses.length > 1 && (
         <div className="tags">
           {businesses.map((x) => (
             <Link
@@ -106,6 +134,96 @@ export default async function BusinessDashboard({
             </Link>
           ))}
         </div>
+      )}
+      <div className="business-dashboard-toolbar">
+        {!directory && (
+          <Link className="text-link" href="/business/dashboard">
+            All businesses
+          </Link>
+        )}
+        <Link className="button small" href="?tab=new-business">
+          <Plus size={16} /> Add business
+        </Link>
+      </div>
+      {directory && (
+        <>
+          <Stats
+            items={[
+              { label: "My businesses", value: businesses?.length || 0 },
+              {
+                label: "Verified businesses",
+                value:
+                  businesses?.filter(
+                    (x) => x.verification_status === "verified",
+                  ).length || 0,
+              },
+            ]}
+          />
+          {businesses?.length ? (
+            <div className="owner-business-grid">
+              {businesses.map((business) => (
+                <article
+                  className="panel owner-business-card"
+                  key={business.id}
+                >
+                  <div className="owner-business-card-heading">
+                    <div className="owner-business-logo">
+                      {business.logo_path ? (
+                        <Image
+                          src={
+                            process.env.NEXT_PUBLIC_SUPABASE_URL +
+                            "/storage/v1/object/public/avatars/" +
+                            business.logo_path
+                          }
+                          alt=""
+                          width={64}
+                          height={64}
+                          unoptimized
+                        />
+                      ) : (
+                        <Store size={28} />
+                      )}
+                    </div>
+                    <span
+                      className={statusBadgeClass(business.verification_status)}
+                    >
+                      {business.verification_status}
+                    </span>
+                  </div>
+                  <h2>{business.name}</h2>
+                  <p>{business.category}</p>
+                  <p>{business.address}</p>
+                  <div className="owner-business-card-actions">
+                    <Link
+                      className="button small"
+                      href={dashboardHref("overview", {}, business.id)}
+                    >
+                      Manage <ArrowUpRight size={16} />
+                    </Link>
+                    <Link
+                      className="button outline small"
+                      href={dashboardHref("profile", {}, business.id)}
+                    >
+                      <Pencil size={15} /> Edit
+                    </Link>
+                    <DeleteBusinessButton
+                      id={business.id}
+                      name={business.name}
+                    />
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="panel">
+              <h2>Introduce your first business</h2>
+              <p>Create a business profile to start building your team.</p>
+              <Link className="button" href="?tab=new-business">
+                Add business
+              </Link>
+            </div>
+          )}
+        </>
       )}
       {b && (
         <section
@@ -191,7 +309,7 @@ export default async function BusinessDashboard({
       )}
       {tab === "profile" && b && (
         <>
-          <PhotoUpload path={b.logo_path} businessId={b.id} />
+          <PhotoUpload key={b.id} path={b.logo_path} businessId={b.id} />
           <BusinessCoverUpload
             key={b.id}
             businessId={b.id}
@@ -233,33 +351,19 @@ export default async function BusinessDashboard({
                   type: "textarea",
                   value: a.profile.introduction,
                 },
-                {
-                  name: "skills",
-                  label: "Skills (comma separated)",
-                  value: a.profile.skills,
-                },
-                {
-                  name: "education",
-                  label: "Education",
-                  type: "textarea",
-                  value: a.profile.education,
-                },
-                {
-                  name: "experience",
-                  label: "Work experience",
-                  type: "textarea",
-                  value: a.profile.experience,
-                },
               ]}
             />
           </details>
         </>
       )}
-      {(tab === "profile" || !b) && (
+      {(tab === "profile" || creating) && (
         <div className="panel">
           <h2>{b ? "Business details" : "Create your business"}</h2>
           <ActionForm
             kind="business"
+            key={b?.id || "new-business"}
+            successHref={b ? undefined : "/business/dashboard"}
+            submit={b ? "Save changes" : "Create business"}
             hidden={b ? { id: b.id } : {}}
             fields={[
               {
@@ -276,10 +380,9 @@ export default async function BusinessDashboard({
               },
               {
                 name: "description",
-                label: "About your business (at least 20 characters)",
+                label: "About your business (optional)",
                 type: "textarea",
                 value: b?.description,
-                required: true,
               },
               {
                 name: "address",
@@ -288,15 +391,20 @@ export default async function BusinessDashboard({
                 required: true,
               },
               {
-                name: "contact_email",
-                label: "Private contact email",
+                name: "public_email",
+                label: "Public contact email (optional)",
                 type: "email",
-                value: b?.business_contacts?.contact_email,
-                required: true,
+                value: b?.public_email,
+              },
+              {
+                name: "public_phone",
+                label: "Public contact number (optional)",
+                type: "tel",
+                value: b?.public_phone,
               },
               {
                 name: "operating_details",
-                label: "Operating details",
+                label: "Operating details (optional)",
                 type: "textarea",
                 value: b?.operating_details,
               },
@@ -306,8 +414,9 @@ export default async function BusinessDashboard({
             <div style={{ marginTop: 25 }}>
               <h3>Verification</h3>
               <p>
-                Submit your completed profile for review. An administrator may
-                contact you using your private contact email.
+                Submit your business profile for administrator review. Any email
+                or phone number you provide above will be visible on your public
+                business profile.
               </p>
               <QuickAction
                 kind="verify"

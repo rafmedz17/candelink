@@ -57,7 +57,10 @@ export function PrivateCvUpload({ hasCv }: { hasCv: boolean }) {
               data.set("file", file);
               const r = await uploadFile(data);
               setResult(r);
-              if (r.ok) router.refresh();
+              if (r.ok) {
+                window.dispatchEvent(new Event("candelink:activity"));
+                router.refresh();
+              }
             } catch {
               setResult({
                 ok: false,
@@ -361,11 +364,13 @@ export function ActionForm({
   fields,
   hidden = {},
   submit = "Save changes",
+  successHref,
 }: {
   kind: string;
   fields: Field[];
   hidden?: Record<string, unknown>;
   submit?: string;
+  successHref?: string;
 }) {
   const router = useRouter();
   const photoSave = usePhotoSave();
@@ -405,6 +410,7 @@ export function ActionForm({
       if (photosDirty) await photoSave!.save(photoScope);
       setResult(response);
       reset(values);
+      if (successHref) router.push(successHref);
       router.refresh();
     } catch (error) {
       setResult({

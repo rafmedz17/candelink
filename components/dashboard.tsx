@@ -46,6 +46,7 @@ export function DashboardLayout({
             ["jobs", "Job management", BriefcaseBusiness],
             ["reports", "Reports", Flag],
             ["audit", "Audit logs", ShieldCheck],
+            ["notifications", "Notifications", Bell],
           ]
         : [
             ["overview", "Dashboard", LayoutDashboard],
@@ -71,7 +72,7 @@ export function DashboardLayout({
               return (
                 <Link
                   key={String(key)}
-                  href={`${base}?tab=${key}${businessId ? `&business=${businessId}` : ""}`}
+                  href={`${base}?tab=${key}${businessId && key !== "overview" ? `&business=${businessId}` : ""}`}
                   className={active === key ? "active" : ""}
                   aria-current={active === key ? "page" : undefined}
                 >

@@ -3,7 +3,7 @@ import { Search } from "lucide-react";
 import { requireAccount } from "@/lib/access";
 import { DashboardLayout, SetupNeeded, Stats } from "@/components/dashboard";
 import { PageTitle } from "@/components/site";
-import { ActionForm, PhotoUpload } from "@/components/forms";
+import { ActionForm, PhotoUpload, QuickAction } from "@/components/forms";
 import { DeleteUserButton } from "@/components/delete-user-button";
 export default async function Admin({
   searchParams,
@@ -15,7 +15,7 @@ export default async function Admin({
   const p = await searchParams,
     tab = p.tab || "overview";
   const [
-    { data: businesses },
+    { data: businesses, error: businessError },
     { data: users },
     { data: jobs },
     { data: reports },
@@ -33,10 +33,27 @@ export default async function Admin({
       .limit(100),
     a.db.from("applications").select("id", { head: true, count: "exact" }),
   ]);
-  const { data: requests } = await a.db
+  const { data: requests, error: requestError } = await a.db
     .from("business_verification_requests")
     .select("*,businesses(name)")
     .eq("status", "pending");
+  if (requestError || businessError)
+    throw new Error(
+      "Verification requests could not be loaded. Please try again.",
+    );
+  const pendingBusinesses = (businesses || []).filter(
+    (b) => b.verification_status === "pending",
+  );
+  const { data: notifications, error: notificationError } =
+    tab === "notifications"
+      ? await a.db
+          .from("notifications")
+          .select("*")
+          .eq("user_id", a.user.id)
+          .order("created_at", { ascending: false })
+      : { data: [], error: null };
+  if (notificationError)
+    throw new Error("Notifications could not be loaded. Please try again.");
   const q = p.q?.trim().toLowerCase() || "";
   const role = ["jobseeker", "business_owner", "admin"].includes(p.role)
     ? p.role
@@ -163,7 +180,7 @@ export default async function Admin({
           </div>
         </form>
       )}
-      {tab !== "profile" && tab !== "users" && (
+      {tab !== "profile" && tab !== "users" && tab !== "notifications" && (
         <form
           className="hero-search page-search"
           style={{ width: "100%", marginTop: 0, marginBottom: 25 }}
@@ -182,16 +199,39 @@ export default async function Admin({
       {["overview", "businesses"].includes(tab) && (
         <>
           <div className="panel">
-            <h2>Pending verification · {requests?.length || 0}</h2>
-            {requests?.map((r) => (
-              <div className="record" key={r.id}>
-                <strong>{r.businesses?.name}</strong>
-                <span>
-                  Requested {new Date(r.created_at).toLocaleDateString("en-PH")}
-                </span>
-              </div>
-            ))}
-            {!requests?.length && <p>The verification queue is clear.</p>}
+            <h2>Pending verification · {pendingBusinesses.length}</h2>
+            {pendingBusinesses.map((b) => {
+              const request = requests?.find((r) => r.business_id === b.id);
+              return (
+                <div className="record" key={b.id}>
+                  <div>
+                    <strong>{b.name}</strong>
+                    <p>
+                      {request
+                        ? "Requested " +
+                          new Date(request.created_at).toLocaleDateString(
+                            "en-PH",
+                          )
+                        : "New business awaiting review"}
+                    </p>
+                  </div>
+                  <Link
+                    className="button outline small"
+                    href={
+                      "/admin?tab=businesses&business=" +
+                      b.id +
+                      "#business-" +
+                      b.id
+                    }
+                  >
+                    Review business
+                  </Link>
+                </div>
+              );
+            })}
+            {!pendingBusinesses.length && (
+              <p>The verification queue is clear.</p>
+            )}
           </div>
           {tab === "businesses" && (
             <>
@@ -205,7 +245,12 @@ export default async function Admin({
                 </div>
               </div>
               {visibleBusinesses.map((b) => (
-                <details className="panel" key={b.id}>
+                <details
+                  className="panel"
+                  key={b.id}
+                  id={`business-${b.id}`}
+                  open={p.business === b.id ? true : undefined}
+                >
                   <summary className="review-summary">
                     <span>{b.name}</span>
                     <span
@@ -234,7 +279,7 @@ export default async function Admin({
                           "rejected",
                           "suspended",
                         ],
-                        value: "pending",
+                        value: b.verification_status,
                       },
                       {
                         name: "reason",
@@ -255,6 +300,33 @@ export default async function Admin({
             </>
           )}
         </>
+      )}
+      {tab === "notifications" && (
+        <section className="panel">
+          <h2>Notifications</h2>
+          {notifications?.length ? (
+            notifications.map((n) => (
+              <article className="record" key={n.id}>
+                <div>
+                  <strong>{n.title}</strong>
+                  <p>{n.body}</p>
+                  <small>
+                    {new Date(n.created_at).toLocaleString("en-PH")}
+                  </small>
+                </div>
+                {!n.read && (
+                  <QuickAction
+                    kind="read"
+                    values={{ id: n.id }}
+                    label="Mark read"
+                  />
+                )}
+              </article>
+            ))
+          ) : (
+            <p>No notifications yet.</p>
+          )}
+        </section>
       )}
       {tab === "users" && (
         <>

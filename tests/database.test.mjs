@@ -1,3 +1,4 @@
+import { businessSchema } from "../lib/validation.ts";
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { PGlite } from "@electric-sql/pglite";
@@ -3418,5 +3419,293 @@ test("registration requires matching confirmation without changing legacy login 
       password: "legacy",
     }).success,
     true,
+  );
+});
+
+test("business description and public contacts are optional, with only opted-in contacts publicly readable", async () => {
+  const minimal = { name: "Optional team", category: "C", address: "X" };
+  assert.equal(businessSchema.safeParse(minimal).success, true);
+  assert.equal(
+    businessSchema.safeParse({
+      ...minimal,
+      description: "Hi",
+      public_email: "",
+      public_phone: "",
+    }).success,
+    true,
+  );
+  assert.equal(
+    businessSchema.safeParse({ ...minimal, public_email: "bad" }).success,
+    false,
+  );
+  assert.equal(
+    businessSchema.safeParse({ ...minimal, public_phone: "abc" }).success,
+    false,
+  );
+  for (const field of ["name", "category", "address"])
+    assert.equal(
+      businessSchema.safeParse({ ...minimal, [field]: " " }).success,
+      false,
+    );
+  ids.optionalOwner = "9b000000-0000-4000-8000-000000000001";
+  ids.optionalAdmin = "9b000000-0000-4000-8000-000000000002";
+  for (const key of ["optionalOwner", "optionalAdmin"])
+    await db.query(
+      "insert into auth.users(id,raw_user_meta_data) values($1,$2)",
+      [
+        ids[key],
+        JSON.stringify({ full_name: key, account_type: "business_owner" }),
+      ],
+    );
+  await db.query("update public.profiles set role='admin' where id=$1", [
+    ids.optionalAdmin,
+  ]);
+  const bid = (
+    await as("optionalOwner", () =>
+      db.query("select public.create_business($1) as id", [
+        JSON.stringify(minimal),
+      ]),
+    )
+  ).rows[0].id;
+  const before = (
+    await db.query(
+      "select description,public_email,public_phone from public.businesses where id=$1",
+      [bid],
+    )
+  ).rows[0];
+  assert.deepEqual(before, {
+    description: "",
+    public_email: "",
+    public_phone: "",
+  });
+  const details = {
+    ...minimal,
+    description: "",
+    public_email: "public@example.com",
+    public_phone: "+63 912 345 6789",
+  };
+  await as("optionalOwner", () =>
+    db.query("select public.update_business($1,$2)", [
+      JSON.stringify(details),
+      bid,
+    ]),
+  );
+  await as("anon", async () =>
+    assert.equal(
+      (await db.query("select id from public.businesses where id=$1", [bid]))
+        .rows.length,
+      0,
+    ),
+  );
+  await as("optionalAdmin", () =>
+    db.query("select public.moderate($1,'business','verified','')", [bid]),
+  );
+  await as("anon", async () => {
+    const visible = (
+      await db.query(
+        "select public_email,public_phone from public.businesses where id=$1",
+        [bid],
+      )
+    ).rows[0];
+    assert.deepEqual(visible, {
+      public_email: "public@example.com",
+      public_phone: "+63 912 345 6789",
+    });
+    await assert.rejects(
+      db.query("select * from public.business_contacts"),
+      /permission denied/,
+    );
+  });
+  await as("optionalOwner", () =>
+    assert.rejects(
+      db.query(
+        "update public.businesses set public_email='forged@example.com' where id=$1",
+        [bid],
+      ),
+      /permission denied/,
+    ),
+  );
+  await as("optionalOwner", () =>
+    db.query("select public.update_business($1,$2)", [
+      JSON.stringify({ ...minimal, public_email: "", public_phone: "" }),
+      bid,
+    ]),
+  );
+  assert.deepEqual(
+    (
+      await db.query(
+        "select public_email,public_phone,verification_status from public.businesses where id=$1",
+        [bid],
+      )
+    ).rows[0],
+    { public_email: "", public_phone: "", verification_status: "verified" },
+  );
+  const legacy = (
+    await as("optionalOwner", () =>
+      db.query("select public.create_business($1) as id", [
+        JSON.stringify({
+          ...minimal,
+          name: "Previously private team",
+          contact_email: "private@example.com",
+        }),
+      ]),
+    )
+  ).rows[0].id;
+  assert.equal(
+    (
+      await db.query("select public_email from public.businesses where id=$1", [
+        legacy,
+      ])
+    ).rows[0].public_email,
+    "",
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select contact_email from public.business_contacts where business_id=$1",
+        [legacy],
+      )
+    ).rows[0].contact_email,
+    "private@example.com",
+  );
+  await as("optionalOwner", () =>
+    assert.rejects(
+      db.query("select public.update_business($1,$2)", [
+        JSON.stringify({ ...minimal, category: " " }),
+        bid,
+      ]),
+      /check constraint/,
+    ),
+  );
+  await as("optionalOwner", () =>
+    assert.rejects(
+      db.query("select public.update_business($1,$2)", [
+        JSON.stringify({ ...minimal, public_email: "not-an-email" }),
+        bid,
+      ]),
+      /check constraint/,
+    ),
+  );
+});
+
+test("an owner manages multiple businesses and deletion is scoped and authorized", async () => {
+  ids.multiOwner = "9c000000-0000-4000-8000-000000000001";
+  ids.multiOther = "9c000000-0000-4000-8000-000000000002";
+  for (const key of ["multiOwner", "multiOther"])
+    await db.query(
+      "insert into auth.users(id,raw_user_meta_data) values($1,$2)",
+      [
+        ids[key],
+        JSON.stringify({ full_name: key, account_type: "business_owner" }),
+      ],
+    );
+  const create = (name) =>
+    as("multiOwner", () =>
+      db.query("select public.create_business($1) as id", [
+        JSON.stringify({ name, category: "Services", address: "Candelaria" }),
+      ]),
+    );
+  const first = (await create("First shop")).rows[0].id;
+  const second = (await create("Second shop")).rows[0].id;
+  assert.equal(
+    (
+      await as("multiOwner", () =>
+        db.query(
+          "select count(*)::int as n from public.businesses where id in ($1,$2)",
+          [first, second],
+        ),
+      )
+    ).rows[0].n,
+    2,
+  );
+  await as("multiOwner", () =>
+    db.query("select public.update_business($1,$2)", [
+      JSON.stringify({
+        name: "Updated second shop",
+        category: "Services",
+        address: "Quezon",
+      }),
+      second,
+    ]),
+  );
+  assert.equal(
+    (await db.query("select name from public.businesses where id=$1", [first]))
+      .rows[0].name,
+    "First shop",
+  );
+  const listing = (
+    await as("multiOwner", () =>
+      db.query(
+        "insert into public.jobs(business_id,title,description,employment_type,arrangement,location,category) values($1,'Shop assistant','A sufficiently detailed job description for the shop.','Full-time','On-site','Candelaria','Services') returning id",
+        [first],
+      ),
+    )
+  ).rows[0].id;
+  ids.multiSeeker = "9c000000-0000-4000-8000-000000000003";
+  await db.query(
+    "insert into auth.users(id,raw_user_meta_data) values($1,$2)",
+    [
+      ids.multiSeeker,
+      JSON.stringify({ full_name: "Applicant", account_type: "jobseeker" }),
+    ],
+  );
+  await as("optionalAdmin", () =>
+    db.query("select public.moderate($1,'business','verified','')", [first]),
+  );
+  await as("multiOwner", () =>
+    db.query("update public.jobs set status='published' where id=$1", [
+      listing,
+    ]),
+  );
+  await db.query(
+    "insert into storage.objects(bucket_id,name) values('cvs',$1)",
+    [ids.multiSeeker + "/cv.pdf"],
+  );
+  await as("multiSeeker", () =>
+    db.query(
+      "insert into public.applications(job_id,applicant_id,cv_path) values($1,$2,$3)",
+      [listing, ids.multiSeeker, ids.multiSeeker + "/cv.pdf"],
+    ),
+  );
+  for (const who of ["multiOther", "seeker", "anon"])
+    await as(who, () =>
+      assert.rejects(
+        db.query("select public.delete_business($1)", [first]),
+        /Business unavailable|Business owner required|permission denied/,
+      ),
+    );
+  await as("multiOwner", () =>
+    db.query("select public.delete_business($1)", [first]),
+  );
+  assert.equal(
+    (
+      await db.query("select count(*)::int as n from public.jobs where id=$1", [
+        listing,
+      ])
+    ).rows[0].n,
+    0,
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select count(*)::int as n from public.applications where job_id=$1",
+        [listing],
+      )
+    ).rows[0].n,
+    0,
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select count(*)::int as n from public.businesses where id=$1",
+        [first],
+      )
+    ).rows[0].n,
+    0,
+  );
+  assert.equal(
+    (await db.query("select name from public.businesses where id=$1", [second]))
+      .rows[0].name,
+    "Updated second shop",
   );
 });

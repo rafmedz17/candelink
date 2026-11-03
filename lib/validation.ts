@@ -26,13 +26,35 @@ export const profileSchema = z.object({
   education: z.string().max(3000),
   experience: z.string().max(5000),
 });
+export const businessOwnerProfileSchema = profileSchema.omit({
+  skills: true,
+  education: true,
+  experience: true,
+});
 export const businessSchema = z.object({
-  name: z.string().min(2).max(120),
-  description: z.string().min(20).max(5000),
-  category: z.string().min(2).max(100),
-  address: z.string().min(5).max(300),
-  contact_email: z.email(),
-  operating_details: z.string().max(2000),
+  name: z.string().trim().min(2).max(120),
+  description: z.string().trim().max(5000).optional().default(""),
+  category: z.string().trim().min(1).max(100),
+  address: z.string().trim().min(1).max(300),
+  public_email: z
+    .union([z.email(), z.literal("")])
+    .optional()
+    .default(""),
+  public_phone: z
+    .string()
+    .trim()
+    .max(40)
+    .refine(
+      (value) =>
+        !value ||
+        (/^\+?[0-9() .-]+$/.test(value) &&
+          value.replace(/\D/g, "").length >= 7 &&
+          value.replace(/\D/g, "").length <= 15),
+      "Enter a valid contact number.",
+    )
+    .optional()
+    .default(""),
+  operating_details: z.string().max(2000).optional().default(""),
 });
 export const mapLocationSchema = z
   .object({

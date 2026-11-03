@@ -18,13 +18,21 @@ export default async function BusinessDetail({
     ? await db
         .from("businesses")
         .select(
-          "id,name,category,address,description,operating_details,logo_path,cover_paths",
+          "id,name,category,address,description,operating_details,logo_path,cover_paths,public_email,public_phone",
         )
         .eq("id", id)
         .eq("verification_status", "verified")
         .single()
     : { data: samples.find((b) => b.id === id) };
   if (!b) notFound();
+  const publicEmail =
+    "public_email" in b && typeof b.public_email === "string"
+      ? b.public_email
+      : "";
+  const publicPhone =
+    "public_phone" in b && typeof b.public_phone === "string"
+      ? b.public_phone
+      : "";
   const user = db ? (await db.auth.getUser()).data.user : null;
   const { data: viewer } = user
     ? await db!
@@ -74,13 +82,39 @@ export default async function BusinessDetail({
                 : []
             }
           />
-          <div className="panel business-intro">
-            <h2>A little about us</h2>
-            <p>{b.description}</p>
-            {"operating_details" in b && (
-              <p>{String(b.operating_details || "")}</p>
-            )}
-          </div>
+          {(b.description ||
+            ("operating_details" in b && b.operating_details)) && (
+            <div className="panel business-intro">
+              <h2>A little about us</h2>
+              <p>{b.description}</p>
+              {"operating_details" in b && (
+                <p>{String(b.operating_details || "")}</p>
+              )}
+            </div>
+          )}
+          {(publicEmail || publicPhone) && (
+            <section className="panel business-public-contact">
+              <h2>Contact this business</h2>
+              <div className="business-contact-links">
+                {publicEmail && (
+                  <a
+                    className="text-link"
+                    href={`mailto:${encodeURIComponent(publicEmail)}`}
+                  >
+                    {publicEmail}
+                  </a>
+                )}
+                {publicPhone && (
+                  <a
+                    className="text-link"
+                    href={`tel:${publicPhone.replace(/[^+0-9]/g, "")}`}
+                  >
+                    {publicPhone}
+                  </a>
+                )}
+              </div>
+            </section>
+          )}
           <h2 className="listing-section-title">
             Opportunities with this team
           </h2>

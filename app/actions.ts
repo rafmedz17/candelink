@@ -6,6 +6,7 @@ import {
   loginCredentials,
   jobSchema,
   profileSchema,
+  businessOwnerProfileSchema,
   statuses,
 } from "@/lib/validation";
 import { z } from "zod";
@@ -168,7 +169,11 @@ async function runMutation(
           .from("saved_jobs")
           .insert({ user_id: user.id, job_id: id.data }));
   } else if (kind === "profile") {
-    const v = profileSchema.safeParse(values);
+    const v = (
+      account.role === "business_owner"
+        ? businessOwnerProfileSchema
+        : profileSchema
+    ).safeParse(values);
     if (!v.success) return { ok: false, message: v.error.issues[0].message };
     ({ error } = await db.from("profiles").update(v.data).eq("id", user.id));
   } else if (kind === "profile-visibility") {
@@ -192,6 +197,14 @@ async function runMutation(
     ({ error } = id.success
       ? await db.rpc("update_business", { details: v.data, bid: id.data })
       : await db.rpc("create_business", { details: v.data }));
+  } else if (kind === "delete-business") {
+    if (account.role !== "business_owner" || !id.success)
+      return { ok: false, message: "Choose a business you own." };
+    ({ error } = await db.rpc("delete_business", { bid: id.data }));
+    if (!error) {
+      revalidatePath("/", "layout");
+      return { ok: true, message: "Business and its job listings deleted." };
+    }
   } else if (kind === "verify") {
     if (!id.success) return { ok: false, message: "Choose a business first." };
     ({ error } = await db

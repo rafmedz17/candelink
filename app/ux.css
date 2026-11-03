@@ -2836,8 +2836,12 @@ td::before {
   background: var(--surface);
   color: var(--ink);
 }
-.photo-crop-dialog::backdrop { background: rgb(0 0 0 / 65%); }
-.photo-crop-dialog > p { margin: 8px 0 20px; }
+.photo-crop-dialog::backdrop {
+  background: rgb(0 0 0 / 65%);
+}
+.photo-crop-dialog > p {
+  margin: 8px 0 20px;
+}
 .photo-crop-preview {
   display: block;
   width: min(280px, 100%);
@@ -2850,14 +2854,34 @@ td::before {
   cursor: grab;
   background: var(--surface-soft);
 }
-.photo-crop-preview:active { cursor: grabbing; }
-.photo-crop-controls { display: grid; gap: 12px; }
-.photo-crop-controls label { display: grid; gap: 4px; }
-.photo-crop-controls input { width: 100%; accent-color: var(--green); }
-.photo-crop-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; }
+.photo-crop-preview:active {
+  cursor: grabbing;
+}
+.photo-crop-controls {
+  display: grid;
+  gap: 12px;
+}
+.photo-crop-controls label {
+  display: grid;
+  gap: 4px;
+}
+.photo-crop-controls input {
+  width: 100%;
+  accent-color: var(--green);
+}
+.photo-crop-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+}
 
-.photo-upload-panel { position: relative; }
-.photo-upload-panel > h2 { padding-right: 48px; }
+.photo-upload-panel {
+  position: relative;
+}
+.photo-upload-panel > h2 {
+  padding-right: 48px;
+}
 .photo-upload-panel .photo-delete-button {
   position: absolute;
   top: 16px;
@@ -2870,11 +2894,81 @@ td::before {
   color: #d87973;
   border-color: rgb(216 121 115 / 35%);
   background: transparent;
-  transition: background 150ms, border-color 150ms;
+  transition:
+    background 150ms,
+    border-color 150ms;
 }
 .photo-upload-panel .photo-delete-button:hover:not(:disabled) {
   background: rgb(216 121 115 / 12%);
   border-color: currentColor;
 }
-.photo-upload-panel .photo-crop-actions:empty { display: none; }
+.photo-upload-panel .photo-crop-actions:empty {
+  display: none;
+}
 
+.business-public-contact {
+  margin-block: 20px;
+}
+.business-contact-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 28px;
+  margin-top: 12px;
+}
+.business-contact-links a {
+  overflow-wrap: anywhere;
+}
+
+.business-dashboard-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+.owner-business-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  gap: 20px;
+}
+.owner-business-card {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  min-width: 0;
+}
+.owner-business-card-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.owner-business-logo {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.owner-business-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.owner-business-card h2,
+.owner-business-card p {
+  overflow-wrap: anywhere;
+}
+.owner-business-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding-top: 24px;
+  margin-top: auto;
+}
