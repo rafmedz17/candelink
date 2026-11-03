@@ -1,17 +1,9 @@
 import { redirect } from "next/navigation";
-import { supabase } from "./supabase/server";
+import { getViewer } from "./viewer";
 export async function requireAccount(role?: string) {
-  const db = await supabase();
+  const { db, user, profile } = await getViewer();
   if (!db) return null;
-  const {
-    data: { user },
-  } = await db.auth.getUser();
   if (!user) redirect("/login");
-  const { data: profile } = await db
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .single();
   if (!profile || profile.suspended)
     redirect("/login?error=account-unavailable");
   if (role && profile.role !== role)

@@ -1,6 +1,6 @@
 import Image from "next/image";
 import { HeroJobSearch } from "@/components/hero-job-search";
-import { supabase } from "@/lib/supabase/server";
+import { getViewer } from "@/lib/viewer";
 import Link from "next/link";
 import {
   ArrowUpRight,
@@ -23,16 +23,15 @@ import { Header, Footer, JobCard } from "@/components/site";
 import { getJobs, featuredBusinesses, communityProfiles } from "@/lib/data";
 
 export default async function Home() {
-  const db = await supabase();
-  const user = db ? (await db.auth.getUser()).data.user : null;
-  const { data: profile } = user
-    ? await db!.from("profiles").select("role").eq("id", user.id).maybeSingle()
-    : { data: null };
+  const [{ user, profile }, { jobs, demo }, businesses, people] =
+    await Promise.all([
+      getViewer(),
+      getJobs(),
+      featuredBusinesses(),
+      communityProfiles(),
+    ]);
   const showSignupSections =
     !user || !["jobseeker", "business_owner"].includes(profile?.role ?? "");
-  const { jobs, demo } = await getJobs();
-  const businesses = await featuredBusinesses();
-  const people = await communityProfiles();
   return (
     <>
       <Header />

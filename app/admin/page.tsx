@@ -22,21 +22,36 @@ export default async function Admin({
     { data: logs },
     { count },
   ] = await Promise.all([
-    a.db.from("businesses").select("*,business_contacts(contact_email)"),
-    a.db.from("profiles").select("id,full_name,role,suspended,created_at"),
-    a.db.from("jobs").select("id,title,status,business_id"),
-    a.db.from("reports").select("*"),
-    a.db
-      .from("audit_logs")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(100),
-    a.db.from("applications").select("id", { head: true, count: "exact" }),
+    ["overview", "businesses"].includes(tab)
+      ? a.db.from("businesses").select("*,business_contacts(contact_email)")
+      : { data: [], error: null },
+    ["overview", "users"].includes(tab)
+      ? a.db.from("profiles").select("id,full_name,role,suspended,created_at")
+      : { data: [] },
+    ["overview", "jobs"].includes(tab)
+      ? a.db.from("jobs").select("id,title,status,business_id")
+      : { data: [] },
+    tab === "reports" ? a.db.from("reports").select("*") : { data: [] },
+    tab === "audit"
+      ? a.db
+          .from("audit_logs")
+          .select("*")
+          .order("created_at", { ascending: false })
+          .limit(100)
+      : { data: [] },
+    tab === "overview"
+      ? a.db.from("applications").select("id", { head: true, count: "exact" })
+      : { count: 0 },
   ]);
-  const { data: requests, error: requestError } = await a.db
-    .from("business_verification_requests")
-    .select("*,businesses(name)")
-    .eq("status", "pending");
+  const { data: requests, error: requestError } = [
+    "overview",
+    "businesses",
+  ].includes(tab)
+    ? await a.db
+        .from("business_verification_requests")
+        .select("*,businesses(name)")
+        .eq("status", "pending")
+    : { data: [], error: null };
   if (requestError || businessError)
     throw new Error(
       "Verification requests could not be loaded. Please try again.",

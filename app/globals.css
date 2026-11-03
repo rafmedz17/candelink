@@ -1,4 +1,7 @@
-@import "tailwindcss";
+@import "tailwindcss" source(none);
+@source "./";
+@source "../components";
+@source "../lib";
 @theme inline {
   --color-background: #ffffff;
   --color-foreground: #202b27;

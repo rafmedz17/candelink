@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import type { Job } from "@/lib/sample";
 import { SaveButton } from "./save-button";
-import { supabase } from "@/lib/supabase/server";
+import { getViewer } from "@/lib/viewer";
 import { ThemeToggle } from "./theme-toggle";
 import { logout } from "@/app/actions";
 import { NavigationMenu } from "./navigation-menu";
@@ -43,15 +43,7 @@ export function Logo() {
   );
 }
 export async function Header() {
-  const db = await supabase();
-  const user = db ? (await db.auth.getUser()).data.user : null;
-  const { data: profile } = user
-    ? await db!
-        .from("profiles")
-        .select("role,avatar_path")
-        .eq("id", user.id)
-        .maybeSingle()
-    : { data: null };
+  const { db, user, profile } = await getViewer();
   const dashboardHref =
     profile?.role === "business_owner"
       ? "/business/dashboard"
