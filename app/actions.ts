@@ -221,9 +221,7 @@ async function runMutation(
     }
   } else if (kind === "verify") {
     if (!id.success) return { ok: false, message: "Choose a business first." };
-    ({ error } = await db
-      .from("business_verification_requests")
-      .insert({ business_id: id.data, requested_by: user.id }));
+    ({ error } = await db.rpc("request_business_review", { bid: id.data }));
   } else if (kind === "job") {
     const v = jobSchema.safeParse(values);
     if (!v.success) return { ok: false, message: v.error.issues[0].message };

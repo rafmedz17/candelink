@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "node --test tests/database.test.mjs",
     "test:e2e": "playwright test",
-    "format": "prettier --write app components lib tests next.config.ts proxy.ts playwright.config.ts README.md"
+    "format": "prettier --write app components lib tests next.config.ts proxy.ts playwright.config.ts README.md",
+    "test:owner": "playwright test --config playwright.owner.config.ts"
   },
   "dependencies": {
     "@fontsource/geist": "5.3.0",

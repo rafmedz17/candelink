@@ -30,9 +30,13 @@ function DraftPhoto({ file }: { file: File }) {
 export function BusinessCoverUpload({
   businessId,
   paths,
+  onDraftChange,
+  controlsDisabled = false,
 }: {
   businessId: string;
   paths: string[];
+  onDraftChange?: (paths: string[], files: File[]) => void;
+  controlsDisabled?: boolean;
 }) {
   const router = useRouter();
   const [saved, setSaved] = useState(paths);
@@ -90,7 +94,13 @@ export function BusinessCoverUpload({
     }
   }
   const photoSave = usePhotoTask(`business:${businessId}`, dirty, save);
-  const locked = pending || Boolean(photoSave?.busy);
+  useEffect(() => {
+    onDraftChange?.(
+      saved.filter((path) => !removed.includes(path)),
+      files,
+    );
+  }, [saved, removed, files, onDraftChange]);
+  const locked = pending || Boolean(photoSave?.busy) || controlsDisabled;
   const [previousPaths, setPreviousPaths] = useState(paths);
   if (paths !== previousPaths) {
     setPreviousPaths(paths);

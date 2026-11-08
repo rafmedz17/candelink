@@ -106,15 +106,32 @@ export function PrivateCvUpload({ hasCv }: { hasCv: boolean }) {
 export function PhotoUpload({
   path,
   businessId,
+  onDraftChange,
+  controlsDisabled = false,
+  deferRemoval = false,
 }: {
   path?: string;
   businessId?: string;
+  onDraftChange?: (
+    file: File | null,
+    removed?: boolean,
+    savedPath?: string | null,
+  ) => void;
+  controlsDisabled?: boolean;
+  deferRemoval?: boolean;
 }) {
   const router = useRouter();
   const [, setResult] = useFeedback();
   const [pending, setPending] = useState(false);
   const [selectedPhoto, setSelectedPhoto] = useState<File | null>(null);
   const [draft, setDraft] = useState<File | null>(null);
+  const [removed, setRemoved] = useState(false);
+  const [savedPath, setSavedPath] = useState<string | null>(path || null);
+  const [previousPath, setPreviousPath] = useState(path);
+  if (path !== previousPath) {
+    setPreviousPath(path);
+    setSavedPath(path || null);
+  }
   const [preview, setPreview] = useState<string | null>(null);
   useEffect(
     () => () => {
@@ -123,6 +140,13 @@ export function PhotoUpload({
     [preview],
   );
   async function savePhoto(createdBusinessId?: string) {
+    if (removed) {
+      const response = await deleteFile("avatar", businessId);
+      if (!response.ok) throw new Error(response.message);
+      setSavedPath(null);
+      setRemoved(false);
+      return;
+    }
     if (!draft) return;
     const file = draft;
     setPending(true);
@@ -142,6 +166,7 @@ export function PhotoUpload({
       if (!response.ok) throw new Error(response.message);
       if (!photoSave) setResult(response);
       if (response.ok) {
+        setSavedPath(response.url || null);
         setDraft(null);
         setPreview(null);
         if (!photoSave) router.refresh();
@@ -158,10 +183,13 @@ export function PhotoUpload({
   }
   const photoSave = usePhotoTask(
     businessId ? `business:${businessId}` : "profile",
-    Boolean(draft),
+    Boolean(draft) || removed,
     savePhoto,
   );
-  const locked = pending || Boolean(photoSave?.busy);
+  useEffect(() => {
+    onDraftChange?.(draft, removed, savedPath);
+  }, [draft, removed, savedPath, onDraftChange]);
+  const locked = pending || Boolean(photoSave?.busy) || controlsDisabled;
   return (
     <div className="panel photo-upload-panel">
       {selectedPhoto && (
@@ -171,6 +199,7 @@ export function PhotoUpload({
           onSave={async (file) => {
             setPreview(URL.createObjectURL(file));
             setDraft(file);
+            setRemoved(false);
             setSelectedPhoto(null);
             setResult(null);
           }}
@@ -178,12 +207,12 @@ export function PhotoUpload({
         />
       )}
       <h2>{businessId ? "Business logo (optional)" : "Your profile photo"}</h2>
-      {(draft || path) && (
+      {(draft || savedPath) && !removed && (
         <Image
           src={
             draft && preview
               ? preview
-              : `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/avatars/${path}`
+              : `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/avatars/${savedPath}`
           }
           alt={businessId ? "Business logo" : "Profile photo"}
           width={80}
@@ -232,13 +261,14 @@ export function PhotoUpload({
             {pending ? "Saving..." : "Save changes"}
           </Button>
         )}
-        {draft && (
+        {(draft || removed) && (
           <Button
             type="button"
             variant="outline"
             disabled={pending}
             onClick={() => {
               setDraft(null);
+              setRemoved(false);
               setPreview(null);
             }}
           >
@@ -246,7 +276,7 @@ export function PhotoUpload({
           </Button>
         )}
       </div>
-      {path && (
+      {savedPath && !removed && (
         <Button
           type="button"
           variant="outline"
@@ -257,6 +287,10 @@ export function PhotoUpload({
           title={businessId ? "Delete business logo" : "Delete profile photo"}
           disabled={locked || Boolean(draft)}
           onClick={async () => {
+            if (deferRemoval) {
+              setRemoved(true);
+              return;
+            }
             if (
               !window.confirm(
                 `Delete this ${businessId ? "business logo" : "profile photo"}?`,

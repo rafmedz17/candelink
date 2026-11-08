@@ -5,8 +5,9 @@ import { DeleteBusinessButton } from "@/components/delete-business-button";
 import { requireAccount } from "@/lib/access";
 import { DashboardLayout, SetupNeeded, Stats } from "@/components/dashboard";
 import { PageTitle } from "@/components/site";
-import { BusinessLocationPicker } from "@/components/business-location-picker";
-import { BusinessCoverUpload } from "@/components/business-cover-upload";
+import { BusinessEditor } from "@/components/business-editor";
+import { BusinessSwitcher } from "@/components/business-switcher";
+import { businessStatuses, type BusinessStatus } from "@/lib/business";
 import {
   ActionForm,
   QuickAction,
@@ -40,6 +41,8 @@ export default async function BusinessDashboard({
       ? "personal-profile"
       : p.tab || "overview";
   const personal = tab === "personal-profile";
+  const selecting =
+    ["jobs", "applicants", "new-job"].includes(tab) && !p.business;
   const { data: businesses, error: businessError } = personal
     ? { data: [], error: null }
     : await a.db
@@ -52,11 +55,11 @@ export default async function BusinessDashboard({
   const creating = tab === "new-business";
   const directory = tab === "overview" && !p.business;
   const b =
-    personal || creating || directory
+    personal || creating || directory || selecting
       ? undefined
       : p.business
         ? businesses?.find((x) => x.id === p.business)
-        : businesses?.[0];
+        : undefined;
   if (p.business && !b && !creating && !personal)
     return (
       <DashboardLayout role="business_owner">
@@ -122,56 +125,38 @@ export default async function BusinessDashboard({
             ? "Profile settings"
             : creating
               ? "Add a business"
-              : b
-                ? b.name
-                : "Your businesses"
+              : selecting
+                ? "Choose a business"
+                : b
+                  ? b.name
+                  : "Your businesses"
         }
         description={
           personal
             ? "Manage your personal information, photo, and profile visibility."
-            : b
-              ? `Verification: ${b.verification_status}. Manage your profile and build your team.`
-              : "Manage each business, build your teams, and grow locally."
+            : selecting
+              ? "Select the business you want to manage before continuing."
+              : b
+                ? "Manage this business, its jobs, and its applicants."
+                : "Manage each business, build your teams, and grow locally."
         }
       />
-      {!directory && !creating && businesses && businesses.length > 1 && (
-        <div className="tags">
-          {businesses.map((x) => (
-            <Link
-              className="badge"
-              key={x.id}
-              href={dashboardHref(
-                tab,
-                tab === "applicants" ? { status: p.status } : {},
-                x.id,
-              )}
-            >
-              {x.name}
-            </Link>
-          ))}
-        </div>
+      {b && (
+        <BusinessSwitcher
+          businesses={businesses || []}
+          selected={b.id}
+          tab={tab}
+        />
       )}
-      {directory && (
+      {directory && !!businesses?.length && (
         <div className="business-dashboard-toolbar">
           <Link className="button small" href="?tab=new-business">
             <Plus size={16} /> Add business
           </Link>
         </div>
       )}
-      {directory && (
+      {(directory || selecting) && (
         <>
-          <Stats
-            items={[
-              { label: "My businesses", value: businesses?.length || 0 },
-              {
-                label: "Verified businesses",
-                value:
-                  businesses?.filter(
-                    (x) => x.verification_status === "verified",
-                  ).length || 0,
-              },
-            ]}
-          />
           {businesses?.length ? (
             <div className="owner-business-grid">
               {businesses.map((business) => (
@@ -200,7 +185,11 @@ export default async function BusinessDashboard({
                     <span
                       className={statusBadgeClass(business.verification_status)}
                     >
-                      {business.verification_status}
+                      {
+                        businessStatuses[
+                          business.verification_status as BusinessStatus
+                        ].label
+                      }
                     </span>
                   </div>
                   <h2>{business.name}</h2>
@@ -218,15 +207,20 @@ export default async function BusinessDashboard({
                   <div className="owner-business-card-actions">
                     <Link
                       className="button small"
-                      href={dashboardHref("overview", {}, business.id)}
+                      href={dashboardHref(
+                        selecting ? tab : "overview",
+                        {},
+                        business.id,
+                      )}
                     >
-                      Manage <ArrowUpRight size={16} />
+                      {selecting ? "Choose business" : "Open business"}{" "}
+                      <ArrowUpRight size={16} />
                     </Link>
                     <Link
                       className="button outline small"
                       href={dashboardHref("profile", {}, business.id)}
                     >
-                      <Pencil size={15} /> Edit
+                      <Pencil size={15} /> Edit details
                     </Link>
                     <DeleteBusinessButton
                       id={business.id}
@@ -241,7 +235,7 @@ export default async function BusinessDashboard({
               <h2>Introduce your first business</h2>
               <p>Create a business profile to start building your team.</p>
               <Link className="button" href="?tab=new-business">
-                Add business
+                Create your first business
               </Link>
             </div>
           )}
@@ -249,39 +243,43 @@ export default async function BusinessDashboard({
       )}
       {b && (
         <section
-          className={`workspace-status workspace-status-${b.verification_status}`}
+          className={
+            "workspace-status workspace-status-" + b.verification_status
+          }
         >
           <div>
             <span>Business status</span>
+            <strong>
+              {businessStatuses[b.verification_status as BusinessStatus].label}
+            </strong>
+            <p>
+              {businessStatuses[b.verification_status as BusinessStatus].help}
+            </p>
             {["rejected", "suspended"].includes(b.verification_status) &&
               b.moderation_reason && (
-                <p className="form-message">
+                <p className="owner-admin-feedback">
                   <strong>Admin feedback:</strong> {b.moderation_reason}
                 </p>
               )}
-            <strong>
-              {b.verification_status === "verified"
-                ? "Verified and ready to hire"
-                : b.verification_status === "pending"
-                  ? "Awaiting verification"
-                  : `Verification ${b.verification_status}`}
-            </strong>
-            <p>
-              {b.verification_status === "verified"
-                ? "Your business can publish local opportunities."
-                : "Complete your business details and request a review before publishing jobs."}
-            </p>
           </div>
-          <Link
-            className="button small"
-            href={dashboardHref(
-              b.verification_status === "verified" ? "new-job" : "profile",
-            )}
-          >
-            {b.verification_status === "verified"
-              ? "Post a job"
-              : "View business profile"}
-          </Link>
+          {b.verification_status === "suspended" ? (
+            <Link className="button outline" href="/contact">
+              Contact admin
+            </Link>
+          ) : (
+            <Link
+              className="button"
+              href={dashboardHref(
+                b.verification_status === "rejected" ? "profile" : "new-job",
+              )}
+            >
+              {b.verification_status === "verified"
+                ? "Create a job"
+                : b.verification_status === "rejected"
+                  ? "Edit details"
+                  : "Prepare a draft job"}
+            </Link>
+          )}
         </section>
       )}
       {tab === "overview" && b && (
@@ -335,20 +333,6 @@ export default async function BusinessDashboard({
           </div>
         </>
       )}
-      {((tab === "profile" && b) || creating) && (
-        <>
-          <PhotoUpload
-            key={b?.id || "new"}
-            path={b?.logo_path}
-            businessId={b?.id || "new"}
-          />
-          <BusinessCoverUpload
-            key={b?.id || "new"}
-            businessId={b?.id || "new"}
-            paths={b?.cover_paths || []}
-          />
-        </>
-      )}
       {personal && (
         <>
           <ProfileVisibility
@@ -388,84 +372,8 @@ export default async function BusinessDashboard({
           </section>
         </>
       )}
-      {(tab === "profile" || creating) && (
-        <div className="panel">
-          <h2>{b ? "Business details" : "Create your business"}</h2>
-          <ActionForm
-            kind="business"
-            key={b?.id || "new-business"}
-            successHref={b ? undefined : "/business/dashboard"}
-            submit={b ? "Save changes" : "Create business"}
-            hidden={b ? { id: b.id } : {}}
-            fields={[
-              {
-                name: "name",
-                label: "Business name",
-                value: b?.name,
-                required: true,
-              },
-              {
-                name: "category",
-                label: "Category",
-                value: b?.category,
-                required: true,
-              },
-              {
-                name: "description",
-                label: "About your business (optional)",
-                type: "textarea",
-                value: b?.description,
-              },
-              {
-                name: "address",
-                label: "Business address",
-                value: b?.address,
-                required: true,
-              },
-              {
-                name: "public_email",
-                label: "Public contact email (optional)",
-                type: "email",
-                value: b?.public_email,
-              },
-              {
-                name: "public_phone",
-                label: "Public contact number (optional)",
-                type: "tel",
-                value: b?.public_phone,
-              },
-              {
-                name: "operating_details",
-                label: "Operating details (optional)",
-                type: "textarea",
-                value: b?.operating_details,
-              },
-            ]}
-          />
-          {b && b.verification_status !== "verified" && (
-            <div style={{ marginTop: 25 }}>
-              <h3>Verification</h3>
-              <p>
-                Submit your business profile for administrator review. Any email
-                or phone number you provide above will be visible on your public
-                business profile.
-              </p>
-              <QuickAction
-                kind="verify"
-                values={{ id: b.id }}
-                label="Request verification"
-              />
-            </div>
-          )}
-        </div>
-      )}
-      {tab === "profile" && b && (
-        <BusinessLocationPicker
-          key={b.id}
-          businessId={b.id}
-          latitude={b.latitude}
-          longitude={b.longitude}
-        />
+      {((tab === "profile" && b) || creating) && (
+        <BusinessEditor key={b?.id || "new"} business={b} />
       )}
       {(tab === "new-job" || p.edit) && b && (
         <div className="panel">
@@ -635,7 +543,7 @@ export default async function BusinessDashboard({
           )}
         </div>
       )}
-      {tab === "applicants" && (
+      {tab === "applicants" && b && (
         <>
           <form
             action="/business/dashboard"

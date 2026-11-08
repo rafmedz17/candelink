@@ -3,6 +3,7 @@ import Link from "next/link";
 import {
   LayoutDashboard,
   UserRound,
+  Store,
   Bookmark,
   BriefcaseBusiness,
   Bell,
@@ -49,7 +50,8 @@ export function DashboardLayout({
             ["notifications", "Notifications", Bell],
           ]
         : [
-            ["overview", "Dashboard", LayoutDashboard],
+            ["overview", "My businesses", LayoutDashboard],
+            ...(businessId ? [["profile", "Business details", Store]] : []),
             ["jobs", "Manage jobs", BriefcaseBusiness],
             ["applicants", "Applicants", UserRound],
             ["notifications", "Notifications", Bell],
@@ -57,7 +59,10 @@ export function DashboardLayout({
   return (
     <>
       <Header />
-      <main id="main-content" className="page-bg workspace-page">
+      <main
+        id="main-content"
+        className={`page-bg workspace-page ${role === "business_owner" ? "workspace-owner" : ""}`}
+      >
         <div className="container dashboard-shell">
           <nav className="dashboard-nav" aria-label="Workspace navigation">
             <span className="workspace-nav-label">

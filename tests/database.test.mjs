@@ -3736,10 +3736,7 @@ test("profile deletion removes sole-owner businesses even without the membership
     [shared, ids.repairCoowner],
   );
   await as("repairOwner", () =>
-    db.query(
-      "insert into public.business_verification_requests(business_id,requested_by) values($1,$2)",
-      [sole, ids.repairOwner],
-    ),
+    db.query("select public.request_business_review($1)", [sole]),
   );
   await db.exec(
     "drop trigger remove_orphan_business_on_member_change on public.business_members",
@@ -3795,5 +3792,168 @@ test("profile deletion removes sole-owner businesses even without the membership
       db.query("select private.remove_orphan_business($1)", [shared]),
       /permission denied/,
     ),
+  );
+});
+
+test("business creation submits one review and resubmission enforces ownership and moderation state", async () => {
+  ids.setupOwner = "9e000000-0000-4000-8000-000000000001";
+  ids.setupOther = "9e000000-0000-4000-8000-000000000002";
+  for (const key of ["setupOwner", "setupOther"])
+    await db.query(
+      "insert into auth.users(id,raw_user_meta_data) values($1,$2)",
+      [
+        ids[key],
+        JSON.stringify({ full_name: key, account_type: "business_owner" }),
+      ],
+    );
+  const bid = (
+    await as("setupOwner", () =>
+      db.query("select public.create_business($1) as id", [
+        JSON.stringify({
+          name: "Setup review shop",
+          category: "Services",
+          address: "Candelaria",
+        }),
+      ]),
+    )
+  ).rows[0].id;
+  const reviews = async () =>
+    (
+      await db.query(
+        "select status,requested_by from public.business_verification_requests where business_id=$1",
+        [bid],
+      )
+    ).rows;
+  assert.deepEqual(await reviews(), [
+    { status: "pending", requested_by: ids.setupOwner },
+  ]);
+  await as("setupOwner", () =>
+    db.query("select public.request_business_review($1)", [bid]),
+  );
+  assert.equal((await reviews()).length, 1);
+  for (const who of ["anon", "setupOther", "seeker"])
+    await as(who, () =>
+      assert.rejects(
+        db.query("select public.request_business_review($1)", [bid]),
+        /permission denied|membership required/,
+      ),
+    );
+  await as("optionalAdmin", () =>
+    db.query(
+      "select public.moderate($1,'business','rejected','Please correct the address')",
+      [bid],
+    ),
+  );
+  await as("setupOwner", () =>
+    db.query("select public.update_business($1,$2)", [
+      JSON.stringify({
+        name: "Setup review shop",
+        category: "Services",
+        address: "Updated address",
+      }),
+      bid,
+    ]),
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select verification_status from public.businesses where id=$1",
+        [bid],
+      )
+    ).rows[0].verification_status,
+    "rejected",
+  );
+  await as("setupOwner", () =>
+    db.query("select public.request_business_review($1)", [bid]),
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select verification_status from public.businesses where id=$1",
+        [bid],
+      )
+    ).rows[0].verification_status,
+    "pending",
+  );
+  assert.deepEqual((await reviews()).map((r) => r.status).sort(), [
+    "pending",
+    "rejected",
+  ]);
+  await as("optionalAdmin", () =>
+    db.query("select public.moderate($1,'business','verified','')", [bid]),
+  );
+  await as("setupOwner", () =>
+    assert.rejects(
+      db.query("select public.request_business_review($1)", [bid]),
+      /cannot be submitted/,
+    ),
+  );
+  await as("optionalAdmin", () =>
+    db.query(
+      "select public.moderate($1,'business','suspended','Contact admin')",
+      [bid],
+    ),
+  );
+  await as("setupOwner", () =>
+    assert.rejects(
+      db.query("select public.request_business_review($1)", [bid]),
+      /cannot be submitted/,
+    ),
+  );
+  await as("setupOwner", () =>
+    assert.rejects(
+      db.query(
+        "insert into public.business_verification_requests(business_id,requested_by) values($1,$2)",
+        [bid, ids.setupOwner],
+      ),
+      /permission denied/,
+    ),
+  );
+});
+
+test("creation rolls back the business and membership if review submission is rate limited", async () => {
+  ids.limitedSetupOwner = "9e000000-0000-4000-8000-000000000003";
+  await db.query(
+    "insert into auth.users(id,raw_user_meta_data) values($1,$2)",
+    [
+      ids.limitedSetupOwner,
+      JSON.stringify({
+        full_name: "Limited owner",
+        account_type: "business_owner",
+      }),
+    ],
+  );
+  await db.query(
+    "insert into private.rate_limits(user_id,operation,requests) values($1,'business_verification_requests',5)",
+    [ids.limitedSetupOwner],
+  );
+  await as("limitedSetupOwner", () =>
+    assert.rejects(
+      db.query("select public.create_business($1)", [
+        JSON.stringify({
+          name: "Must roll back",
+          category: "Services",
+          address: "Candelaria",
+        }),
+      ]),
+      /Daily action limit/,
+    ),
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select count(*)::int as n from public.business_members where user_id=$1",
+        [ids.limitedSetupOwner],
+      )
+    ).rows[0].n,
+    0,
+  );
+  assert.equal(
+    (
+      await db.query(
+        "select count(*)::int as n from public.businesses where name='Must roll back'",
+      )
+    ).rows[0].n,
+    0,
   );
 });

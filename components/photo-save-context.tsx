@@ -22,6 +22,7 @@ type Registry = {
   save: (scope: string, businessId?: string) => Promise<void>;
   busy: boolean;
   registerForm: (id: string, task: Task | null) => void;
+  navigate: (href: string) => void;
 };
 const Context = createContext<Registry | null>(null);
 export function PhotoSaveProvider({ children }: { children: React.ReactNode }) {
@@ -162,7 +163,21 @@ export function PhotoSaveProvider({ children }: { children: React.ReactNode }) {
     }
   }
   return (
-    <Context.Provider value={{ dirty, register, save, busy, registerForm }}>
+    <Context.Provider
+      value={{
+        dirty,
+        register,
+        save,
+        busy,
+        registerForm,
+        navigate: (href) => {
+          if (hasChanges) {
+            setError("");
+            setDestination(new URL(href, location.href).href);
+          } else router.push(href);
+        },
+      }}
+    >
       {children}
       <dialog
         ref={dialog}

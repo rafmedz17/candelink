@@ -32,10 +32,14 @@ export const businessOwnerProfileSchema = profileSchema.omit({
   experience: true,
 });
 export const businessSchema = z.object({
-  name: z.string().trim().min(2).max(120),
+  name: z
+    .string()
+    .trim()
+    .min(2, "Enter a business name with at least 2 characters.")
+    .max(120),
   description: z.string().trim().max(5000).optional().default(""),
-  category: z.string().trim().min(1).max(100),
-  address: z.string().trim().min(1).max(300),
+  category: z.string().trim().min(1, "Enter a business category.").max(100),
+  address: z.string().trim().min(1, "Enter your business address.").max(300),
   public_email: z
     .union([z.email(), z.literal("")])
     .optional()
