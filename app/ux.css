@@ -2972,3 +2972,34 @@ td::before {
   padding-top: 24px;
   margin-top: auto;
 }
+.admin-business-review {
+  margin-block: 24px;
+}
+.admin-business-review .business-profile-hero {
+  margin-block: 16px;
+}
+.business-review-details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 18px;
+  margin-block: 24px;
+}
+.business-review-details dt {
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.business-review-details dd {
+  margin: 0;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+.photo-crop-dialog.background-crop-dialog {
+  width: min(720px, calc(100vw - 32px));
+}
+.photo-crop-preview.photo-crop-preview-cover {
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  aspect-ratio: 3 / 1;
+  border-radius: 12px;
+}

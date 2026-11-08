@@ -3709,3 +3709,91 @@ test("an owner manages multiple businesses and deletion is scoped and authorized
     "Updated second shop",
   );
 });
+
+test("profile deletion removes sole-owner businesses even without the membership cleanup trigger", async () => {
+  ids.repairOwner = "9d000000-0000-4000-8000-000000000001";
+  ids.repairCoowner = "9d000000-0000-4000-8000-000000000002";
+  for (const key of ["repairOwner", "repairCoowner"])
+    await db.query(
+      "insert into auth.users(id,raw_user_meta_data) values($1,$2)",
+      [
+        ids[key],
+        JSON.stringify({ full_name: key, account_type: "business_owner" }),
+      ],
+    );
+  const create = async (name) =>
+    (
+      await as("repairOwner", () =>
+        db.query("select public.create_business($1) as id", [
+          JSON.stringify({ name, category: "Services", address: "Candelaria" }),
+        ]),
+      )
+    ).rows[0].id;
+  const sole = await create("Sole owner repair");
+  const shared = await create("Shared owner repair");
+  await db.query(
+    "insert into public.business_members(business_id,user_id) values($1,$2)",
+    [shared, ids.repairCoowner],
+  );
+  await as("repairOwner", () =>
+    db.query(
+      "insert into public.business_verification_requests(business_id,requested_by) values($1,$2)",
+      [sole, ids.repairOwner],
+    ),
+  );
+  await db.exec(
+    "drop trigger remove_orphan_business_on_member_change on public.business_members",
+  );
+  try {
+    await db.query("select set_config('request.jwt.claim.sub',$1,false)", [
+      ids.optionalAdmin,
+    ]);
+    await db.query("delete from auth.users where id=$1", [ids.repairOwner]);
+    assert.equal(
+      (
+        await db.query(
+          "select count(*)::int as n from public.businesses where id=$1",
+          [sole],
+        )
+      ).rows[0].n,
+      0,
+    );
+    assert.equal(
+      (
+        await db.query(
+          "select count(*)::int as n from public.business_verification_requests where business_id=$1",
+          [sole],
+        )
+      ).rows[0].n,
+      0,
+    );
+    assert.equal(
+      (
+        await db.query(
+          "select count(*)::int as n from public.businesses where id=$1",
+          [shared],
+        )
+      ).rows[0].n,
+      1,
+    );
+    assert.equal(
+      (
+        await db.query(
+          "select user_id from public.business_members where business_id=$1",
+          [shared],
+        )
+      ).rows[0].user_id,
+      ids.repairCoowner,
+    );
+  } finally {
+    await db.exec(
+      "create trigger remove_orphan_business_on_member_change after delete or update of user_id,business_id on public.business_members for each row execute function private.remove_orphan_business_on_member_change()",
+    );
+  }
+  await as("repairCoowner", () =>
+    assert.rejects(
+      db.query("select private.remove_orphan_business($1)", [shared]),
+      /permission denied/,
+    ),
+  );
+});

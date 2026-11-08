@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { BusinessProfileHero } from "@/components/business-profile-hero";
 import { Search } from "lucide-react";
 import { requireAccount } from "@/lib/access";
 import { DashboardLayout, SetupNeeded, Stats } from "@/components/dashboard";
@@ -76,6 +77,7 @@ export default async function Admin({
   const status = ["active", "suspended"].includes(p.status) ? p.status : "";
   const filteredUsers = (users || []).filter(
     (u) =>
+      u.id !== a.user.id &&
       `${u.full_name} ${u.role}`.toLowerCase().includes(q) &&
       (!role || u.role === role) &&
       (!status || u.suspended === (status === "suspended")),
@@ -274,13 +276,64 @@ export default async function Admin({
                       {b.verification_status}
                     </span>
                   </summary>
-                  <p>
-                    {b.description}
-                    <br />
-                    {b.address}
-                    <br />
-                    {b.business_contacts?.contact_email}
-                  </p>
+                  <section
+                    className="admin-business-review"
+                    aria-label={"Review " + b.name}
+                  >
+                    <h3>Business profile review</h3>
+                    <BusinessProfileHero
+                      name={b.name}
+                      category={b.category}
+                      address={b.address}
+                      logo={b.logo_path}
+                      photos={b.cover_paths || []}
+                    />
+                    <dl className="business-review-details">
+                      <div>
+                        <dt>About the business</dt>
+                        <dd>{b.description || "Not provided"}</dd>
+                      </div>
+                      <div>
+                        <dt>Category</dt>
+                        <dd>{b.category}</dd>
+                      </div>
+                      <div>
+                        <dt>Address</dt>
+                        <dd>{b.address}</dd>
+                      </div>
+                      <div>
+                        <dt>Operating details</dt>
+                        <dd>{b.operating_details || "Not provided"}</dd>
+                      </div>
+                      <div>
+                        <dt>Public email</dt>
+                        <dd>{b.public_email || "Not provided"}</dd>
+                      </div>
+                      <div>
+                        <dt>Public contact number</dt>
+                        <dd>{b.public_phone || "Not provided"}</dd>
+                      </div>
+                      <div>
+                        <dt>Created</dt>
+                        <dd>
+                          {new Date(b.created_at).toLocaleDateString("en-PH")}
+                        </dd>
+                      </div>
+                    </dl>
+                    {b.moderation_reason &&
+                      ["rejected", "suspended"].includes(
+                        b.verification_status,
+                      ) && (
+                        <p className="form-message">
+                          Previous decision: {b.moderation_reason}
+                        </p>
+                      )}
+                    <p>
+                      Review the business details and photos before recording
+                      your decision. Missing optional information does not
+                      prevent verification.
+                    </p>
+                  </section>
                   <ActionForm
                     kind="moderate"
                     hidden={{ target: "business", id: b.id }}
@@ -298,7 +351,11 @@ export default async function Admin({
                       },
                       {
                         name: "reason",
-                        label: "Recorded reason (optional)",
+                        label: "Reason shown to the business owner (optional)",
+                        visibleWhen: {
+                          field: "decision",
+                          values: ["rejected", "suspended"],
+                        },
                         type: "textarea",
                       },
                     ]}
@@ -379,13 +436,7 @@ export default async function Admin({
                 ]}
                 submit="Update account"
               />
-              {u.id === a.user.id ? (
-                <p className="form-message">
-                  Your current account cannot be deleted.
-                </p>
-              ) : (
-                <DeleteUserButton userId={u.id} name={u.full_name} />
-              )}
+              <DeleteUserButton userId={u.id} name={u.full_name} />
             </details>
           ))}
           {!filteredUsers.length && (

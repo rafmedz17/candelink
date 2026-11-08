@@ -52,23 +52,12 @@ export async function Header() {
         : "/dashboard";
   const profileHref =
     profile?.role === "business_owner"
-      ? "/business/dashboard?tab=profile"
+      ? "/business/dashboard?tab=personal-profile"
       : profile?.role === "admin"
         ? "/admin?tab=profile"
         : "/dashboard?tab=profile";
-  const profileLabel =
-    profile?.role === "business_owner" ? "Business profile" : "My profile";
-  const { data: business } =
-    user && profile?.role === "business_owner"
-      ? await db!
-          .from("businesses")
-          .select("logo_path,business_members!inner(user_id)")
-          .eq("business_members.user_id", user.id)
-          .order("created_at", { ascending: true })
-          .limit(1)
-          .maybeSingle()
-      : { data: null };
-  const avatarPath = business?.logo_path || profile?.avatar_path;
+  const profileLabel = "Profile settings";
+  const avatarPath = profile?.avatar_path;
   const avatarUrl = avatarPath
     ? db!.storage.from("avatars").getPublicUrl(avatarPath).data.publicUrl
     : null;

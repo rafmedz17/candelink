@@ -11,11 +11,15 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 
-type Task = { scope: string; dirty: boolean; save: () => Promise<void> };
+type Task = {
+  scope: string;
+  dirty: boolean;
+  save: (businessId?: string) => Promise<void>;
+};
 type Registry = {
   dirty: Record<string, boolean>;
   register: (id: string, task: Task | null) => void;
-  save: (scope: string) => Promise<void>;
+  save: (scope: string, businessId?: string) => Promise<void>;
   busy: boolean;
   registerForm: (id: string, task: Task | null) => void;
 };
@@ -148,11 +152,11 @@ export function PhotoSaveProvider({ children }: { children: React.ReactNode }) {
       JSON.stringify(previous) === JSON.stringify(next) ? previous : next,
     );
   }, []);
-  async function save(scope: string) {
+  async function save(scope: string, businessId?: string) {
     setBusy(true);
     try {
       for (const task of tasks.current.values())
-        if (task.scope === scope && task.dirty) await task.save();
+        if (task.scope === scope && task.dirty) await task.save(businessId);
     } finally {
       setBusy(false);
     }
@@ -203,7 +207,10 @@ export function PhotoSaveProvider({ children }: { children: React.ReactNode }) {
   );
 }
 export const usePhotoSave = () => useContext(Context);
-export function useUnsavedForm(dirty: boolean, save: () => Promise<void>) {
+export function useUnsavedForm(
+  dirty: boolean,
+  save: (businessId?: string) => Promise<void>,
+) {
   const context = usePhotoSave();
   const register = context?.registerForm;
   const id = useId();
@@ -215,7 +222,7 @@ export function useUnsavedForm(dirty: boolean, save: () => Promise<void>) {
 export function usePhotoTask(
   scope: string,
   dirty: boolean,
-  save: () => Promise<void>,
+  save: (businessId?: string) => Promise<void>,
 ) {
   const context = usePhotoSave();
   const register = context?.register;

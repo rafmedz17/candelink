@@ -35,23 +35,29 @@ export default async function BusinessDashboard({
   const a = await requireAccount("business_owner");
   if (!a) return <SetupNeeded role="business_owner" />;
   const p = await searchParams;
-  const tab = p.tab || "overview";
-  const { data: businesses, error: businessError } = await a.db
-    .from("businesses")
-    .select("*, business_members!inner(user_id)")
-    .eq("business_members.user_id", a.user.id)
-    .order("created_at");
+  const tab =
+    p.tab === "profile" && !p.business
+      ? "personal-profile"
+      : p.tab || "overview";
+  const personal = tab === "personal-profile";
+  const { data: businesses, error: businessError } = personal
+    ? { data: [], error: null }
+    : await a.db
+        .from("businesses")
+        .select("*, business_members!inner(user_id)")
+        .eq("business_members.user_id", a.user.id)
+        .order("created_at");
   if (businessError)
     throw new Error("Your businesses could not be loaded. Please try again.");
   const creating = tab === "new-business";
   const directory = tab === "overview" && !p.business;
   const b =
-    creating || directory
+    personal || creating || directory
       ? undefined
       : p.business
         ? businesses?.find((x) => x.id === p.business)
         : businesses?.[0];
-  if (p.business && !b && !creating)
+  if (p.business && !b && !creating && !personal)
     return (
       <DashboardLayout role="business_owner">
         <PageTitle
@@ -111,11 +117,21 @@ export default async function BusinessDashboard({
     <DashboardLayout role="business_owner" active={tab} businessId={b?.id}>
       <PageTitle
         eyebrow="LOCAL TALENT. YOUR NEXT GREAT TEAM."
-        title={creating ? "Add a business" : b ? b.name : "Your businesses"}
+        title={
+          personal
+            ? "Profile settings"
+            : creating
+              ? "Add a business"
+              : b
+                ? b.name
+                : "Your businesses"
+        }
         description={
-          b
-            ? `Verification: ${b.verification_status}. Manage your profile and build your team.`
-            : "Manage each business, build your teams, and grow locally."
+          personal
+            ? "Manage your personal information, photo, and profile visibility."
+            : b
+              ? `Verification: ${b.verification_status}. Manage your profile and build your team.`
+              : "Manage each business, build your teams, and grow locally."
         }
       />
       {!directory && !creating && businesses && businesses.length > 1 && (
@@ -135,16 +151,13 @@ export default async function BusinessDashboard({
           ))}
         </div>
       )}
-      <div className="business-dashboard-toolbar">
-        {!directory && (
-          <Link className="text-link" href="/business/dashboard">
-            All businesses
+      {directory && (
+        <div className="business-dashboard-toolbar">
+          <Link className="button small" href="?tab=new-business">
+            <Plus size={16} /> Add business
           </Link>
-        )}
-        <Link className="button small" href="?tab=new-business">
-          <Plus size={16} /> Add business
-        </Link>
-      </div>
+        </div>
+      )}
       {directory && (
         <>
           <Stats
@@ -193,6 +206,15 @@ export default async function BusinessDashboard({
                   <h2>{business.name}</h2>
                   <p>{business.category}</p>
                   <p>{business.address}</p>
+                  {["rejected", "suspended"].includes(
+                    business.verification_status,
+                  ) &&
+                    business.moderation_reason && (
+                      <p className="form-message">
+                        <strong>Admin feedback:</strong>{" "}
+                        {business.moderation_reason}
+                      </p>
+                    )}
                   <div className="owner-business-card-actions">
                     <Link
                       className="button small"
@@ -231,6 +253,12 @@ export default async function BusinessDashboard({
         >
           <div>
             <span>Business status</span>
+            {["rejected", "suspended"].includes(b.verification_status) &&
+              b.moderation_reason && (
+                <p className="form-message">
+                  <strong>Admin feedback:</strong> {b.moderation_reason}
+                </p>
+              )}
             <strong>
               {b.verification_status === "verified"
                 ? "Verified and ready to hire"
@@ -307,24 +335,28 @@ export default async function BusinessDashboard({
           </div>
         </>
       )}
-      {tab === "profile" && b && (
+      {((tab === "profile" && b) || creating) && (
         <>
-          <PhotoUpload key={b.id} path={b.logo_path} businessId={b.id} />
+          <PhotoUpload
+            key={b?.id || "new"}
+            path={b?.logo_path}
+            businessId={b?.id || "new"}
+          />
           <BusinessCoverUpload
-            key={b.id}
-            businessId={b.id}
-            paths={b.cover_paths || []}
+            key={b?.id || "new"}
+            businessId={b?.id || "new"}
+            paths={b?.cover_paths || []}
           />
         </>
       )}
-      {tab === "profile" && (
+      {personal && (
         <>
           <ProfileVisibility
             profileId={a.user.id}
             isPublic={Boolean(a.profile.public_profile)}
           />
-          <details className="panel">
-            <summary>Your professional profile</summary>
+          <section className="panel">
+            <h2>Your personal profile</h2>
             <PhotoUpload path={a.profile.avatar_path} />
             <ActionForm
               kind="profile"
@@ -353,7 +385,7 @@ export default async function BusinessDashboard({
                 },
               ]}
             />
-          </details>
+          </section>
         </>
       )}
       {(tab === "profile" || creating) && (

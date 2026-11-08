@@ -8,9 +8,9 @@ import {
 import Link from "next/link";
 import { Trash2 } from "lucide-react";
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import {
   authAction,
   cvLink,
@@ -28,6 +28,7 @@ type Field = {
   required?: boolean;
   value?: string | number;
   placeholder?: string;
+  visibleWhen?: { field: string; values: string[] };
 };
 export function PrivateCvUpload({ hasCv }: { hasCv: boolean }) {
   const router = useRouter();
@@ -121,7 +122,7 @@ export function PhotoUpload({
     },
     [preview],
   );
-  async function savePhoto() {
+  async function savePhoto(createdBusinessId?: string) {
     if (!draft) return;
     const file = draft;
     setPending(true);
@@ -129,7 +130,14 @@ export function PhotoUpload({
       const data = new FormData();
       data.set("file", file);
       data.set("bucket", "avatars");
-      if (businessId) data.set("business_id", businessId);
+      if (businessId) {
+        const targetId = businessId === "new" ? createdBusinessId : businessId;
+        if (!targetId)
+          throw new Error(
+            "Save the business details before uploading its logo.",
+          );
+        data.set("business_id", targetId);
+      }
       const response = await uploadFile(data);
       if (!response.ok) throw new Error(response.message);
       if (!photoSave) setResult(response);
@@ -216,7 +224,11 @@ export function PhotoUpload({
       </label>
       <div className="photo-crop-actions">
         {!photoSave && (
-          <Button type="button" disabled={locked || !draft} onClick={savePhoto}>
+          <Button
+            type="button"
+            disabled={locked || !draft}
+            onClick={() => savePhoto()}
+          >
             {pending ? "Saving..." : "Save changes"}
           </Button>
         )}
@@ -374,8 +386,10 @@ export function ActionForm({
 }) {
   const router = useRouter();
   const photoSave = usePhotoSave();
-  const photoScope = kind === "business" ? `business:${hidden.id ?? ""}` : kind;
+  const photoScope =
+    kind === "business" ? `business:${hidden.id ?? "new"}` : kind;
   const photosDirty = Boolean(photoSave?.dirty[photoScope]);
+  const createdBusiness = useRef<string | undefined>(undefined);
   const defaults = Object.fromEntries(
     fields.map((field) => [
       field.name,
@@ -384,10 +398,12 @@ export function ActionForm({
   );
   const {
     register,
+    control,
     handleSubmit,
     reset,
     formState: { isSubmitting, isDirty },
   } = useForm<Record<string, string>>({ values: defaults });
+  const selectedDecision = useWatch({ control, name: "decision" });
   const saving = isSubmitting || Boolean(photoSave?.busy);
   const requiresChanges = [
     "profile",
@@ -402,12 +418,31 @@ export function ActionForm({
     if (requiresChanges && !isDirty && !photosDirty) return;
     setResult(null);
     try {
-      const response = await mutate(kind, { ...hidden, ...values });
+      const submitted = { ...values };
+      for (const field of fields) {
+        if (
+          field.visibleWhen &&
+          !field.visibleWhen.values.includes(
+            String(submitted[field.visibleWhen.field]),
+          )
+        )
+          submitted[field.name] = "";
+      }
+      const response = await mutate(kind, {
+        ...hidden,
+        ...(kind === "business" && createdBusiness.current
+          ? { id: createdBusiness.current }
+          : {}),
+        ...submitted,
+      });
       if (!response.ok) {
         setResult(response);
         throw new Error(response.message);
       }
-      if (photosDirty) await photoSave!.save(photoScope);
+      if (kind === "business" && response.businessId)
+        createdBusiness.current = response.businessId;
+      if (photosDirty)
+        await photoSave!.save(photoScope, createdBusiness.current);
       setResult(response);
       reset(values);
       if (successHref) router.push(successHref);
@@ -437,38 +472,50 @@ export function ActionForm({
         void handleSubmit(saveValues)(event).catch(() => {});
       }}
     >
-      {fields.map((f) => (
-        <label key={f.name}>
-          {f.label}
-          {f.type === "textarea" ? (
-            <textarea
-              {...register(f.name, { required: f.required })}
-              disabled={saving}
-              required={f.required}
-              maxLength={15000}
-            />
-          ) : f.options ? (
-            <select
-              {...register(f.name)}
-              required={f.required}
-              disabled={saving}
-            >
-              {f.options.map((v) => (
-                <option key={v}>{v}</option>
-              ))}
-            </select>
-          ) : (
-            <input
-              {...register(f.name, { required: f.required })}
-              disabled={saving}
-              required={f.required}
-              type={f.type || "text"}
-              placeholder={f.placeholder}
-              maxLength={f.type === "number" ? undefined : 5000}
-            />
-          )}
-        </label>
-      ))}
+      {fields
+        .filter(
+          (f) =>
+            !f.visibleWhen ||
+            f.visibleWhen.values.includes(
+              String(
+                f.visibleWhen.field === "decision"
+                  ? selectedDecision
+                  : defaults[f.visibleWhen.field],
+              ),
+            ),
+        )
+        .map((f) => (
+          <label key={f.name}>
+            {f.label}
+            {f.type === "textarea" ? (
+              <textarea
+                {...register(f.name, { required: f.required })}
+                disabled={saving}
+                required={f.required}
+                maxLength={15000}
+              />
+            ) : f.options ? (
+              <select
+                {...register(f.name)}
+                required={f.required}
+                disabled={saving}
+              >
+                {f.options.map((v) => (
+                  <option key={v}>{v}</option>
+                ))}
+              </select>
+            ) : (
+              <input
+                {...register(f.name, { required: f.required })}
+                disabled={saving}
+                required={f.required}
+                type={f.type || "text"}
+                placeholder={f.placeholder}
+                maxLength={f.type === "number" ? undefined : 5000}
+              />
+            )}
+          </label>
+        ))}
 
       <Button
         disabled={saving || (requiresChanges && !isDirty && !photosDirty)}

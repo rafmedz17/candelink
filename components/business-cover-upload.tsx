@@ -1,15 +1,31 @@
 "use client";
 import { useEffect, useState } from "react";
+import { PhotoCropDialog } from "./photo-crop-dialog";
 import { useRouter } from "next/navigation";
 import { businessPhoto } from "@/app/business/photo-actions";
 import { usePhotoTask } from "./photo-save-context";
 import { useFeedback } from "./use-feedback";
 
 function DraftPhoto({ file }: { file: File }) {
-  const [url] = useState(() => URL.createObjectURL(file));
-  useEffect(() => () => URL.revokeObjectURL(url), [url]);
+  const [preview, setPreview] = useState<{ file: File; url: string } | null>(
+    null,
+  );
+  useEffect(() => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string")
+        setPreview({ file, url: reader.result });
+    };
+    reader.readAsDataURL(file);
+    return () => {
+      reader.onload = null;
+      if (reader.readyState === FileReader.LOADING) reader.abort();
+    };
+  }, [file]);
+  if (!preview || preview.file !== file)
+    return <span role="status">Preparing preview…</span>;
   // eslint-disable-next-line @next/next/no-img-element -- Local file preview.
-  return <img src={url} alt="Unsaved background photo" />;
+  return <img src={preview.url} alt="Unsaved background photo" />;
 }
 export function BusinessCoverUpload({
   businessId,
@@ -21,18 +37,25 @@ export function BusinessCoverUpload({
   const router = useRouter();
   const [saved, setSaved] = useState(paths);
   const [files, setFiles] = useState<File[]>([]);
+  const [cropQueue, setCropQueue] = useState<File[]>([]);
+  const [editing, setEditing] = useState<File | null>(null);
   const [removed, setRemoved] = useState<string[]>([]);
   const [pending, setPending] = useState(false);
   const [, setResult] = useFeedback();
   const visible = saved.filter((path) => !removed.includes(path));
-  const dirty = files.length > 0 || removed.length > 0;
-  async function save() {
+  const dirty = files.length > 0 || removed.length > 0 || cropQueue.length > 0;
+  async function save(createdBusinessId?: string) {
+    if (cropQueue.length)
+      throw new Error("Finish cropping your background photos before saving.");
+    const targetId = businessId === "new" ? createdBusinessId : businessId;
+    if (!targetId)
+      throw new Error("Save the business details before uploading photos.");
     setPending(true);
     setResult(null);
     try {
       for (const path of removed) {
         const data = new FormData();
-        data.set("business_id", businessId);
+        data.set("business_id", targetId);
         data.set("remove", "true");
         data.set("path", path);
         const response = await businessPhoto(data);
@@ -42,7 +65,7 @@ export function BusinessCoverUpload({
       }
       for (const file of files) {
         const data = new FormData();
-        data.set("business_id", businessId);
+        data.set("business_id", targetId);
         data.set("file", file);
         const response = await businessPhoto(data);
         if (!response.ok) throw new Error(response.message);
@@ -75,6 +98,29 @@ export function BusinessCoverUpload({
   }
   return (
     <section className="panel">
+      {(editing || cropQueue[0]) && (
+        <PhotoCropDialog
+          key={(editing || cropQueue[0]).name + cropQueue.length}
+          file={editing || cropQueue[0]}
+          variant="cover"
+          pending={locked}
+          onSave={async (cropped) => {
+            if (editing) {
+              setFiles((current) =>
+                current.map((file) => (file === editing ? cropped : file)),
+              );
+              setEditing(null);
+            } else {
+              setFiles((current) => [...current, cropped]);
+              setCropQueue((current) => current.slice(1));
+            }
+          }}
+          onCancel={() => {
+            setEditing(null);
+            setCropQueue([]);
+          }}
+        />
+      )}
       <h2>Background photos (optional)</h2>
       <p>
         Add up to six JPEG or PNG photos, up to 5 MB each. Multiple photos
@@ -110,6 +156,14 @@ export function BusinessCoverUpload({
           <div key={file.name + file.lastModified + index}>
             <DraftPhoto file={file} />
             <small>Not saved yet</small>
+            <button
+              type="button"
+              className="button outline"
+              disabled={locked}
+              onClick={() => setEditing(file)}
+            >
+              Adjust crop
+            </button>
             <button
               type="button"
               className="button outline"
@@ -154,7 +208,7 @@ export function BusinessCoverUpload({
               });
               return;
             }
-            setFiles((current) => [...current, ...selected]);
+            setCropQueue(selected);
           }}
         />
       </label>
@@ -164,7 +218,7 @@ export function BusinessCoverUpload({
             type="button"
             className="button"
             disabled={locked || !dirty}
-            onClick={save}
+            onClick={() => save()}
           >
             {pending ? "Saving photos..." : "Save changes"}
           </button>

@@ -12,7 +12,12 @@ import {
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-export type Result = { ok: boolean; message: string; url?: string };
+export type Result = {
+  ok: boolean;
+  message: string;
+  url?: string;
+  businessId?: string;
+};
 export async function authAction(
   mode: string,
   values: Record<string, string>,
@@ -194,9 +199,18 @@ async function runMutation(
       return { ok: false, message: "A business owner account is required." };
     const v = businessSchema.safeParse(values);
     if (!v.success) return { ok: false, message: v.error.issues[0].message };
-    ({ error } = id.success
+    const saved = id.success
       ? await db.rpc("update_business", { details: v.data, bid: id.data })
-      : await db.rpc("create_business", { details: v.data }));
+      : await db.rpc("create_business", { details: v.data });
+    error = saved.error;
+    if (!error && typeof saved.data === "string") {
+      revalidatePath("/", "layout");
+      return {
+        ok: true,
+        message: "Business details saved.",
+        businessId: saved.data,
+      };
+    }
   } else if (kind === "delete-business") {
     if (account.role !== "business_owner" || !id.success)
       return { ok: false, message: "Choose a business you own." };
@@ -330,7 +344,11 @@ async function runMutation(
       target_id: v.data.id,
       target_type: v.data.target,
       decision: v.data.decision,
-      reason: v.data.reason,
+      reason:
+        v.data.target === "business" &&
+        !["rejected", "suspended"].includes(v.data.decision)
+          ? ""
+          : v.data.reason,
     }));
   } else return { ok: false, message: "Unknown action." };
   if (error)

@@ -8,8 +8,10 @@ export function PhotoCropDialog({
   pending,
   onSave,
   onCancel,
+  variant = "avatar",
 }: {
   file: File;
+  variant?: "avatar" | "cover";
   pending: boolean;
   onSave: (file: File) => Promise<void>;
   onCancel: () => void;
@@ -28,6 +30,12 @@ export function PhotoCropDialog({
   const setError = useErrorFeedback();
   const [exporting, setExporting] = useState(false);
   const busy = pending || exporting;
+  const cover = variant === "cover";
+  const aspect = cover ? 3 : 1;
+  const cropWidth = image
+    ? Math.min(image.naturalWidth, image.naturalHeight * aspect) / zoom
+    : 0;
+  const cropHeight = cropWidth / aspect;
 
   useEffect(() => {
     const element = dialog.current!;
@@ -44,19 +52,32 @@ export function PhotoCropDialog({
     };
   }, [file, setError]);
 
-  function draw(context: CanvasRenderingContext2D, size: number) {
+  function draw(
+    context: CanvasRenderingContext2D,
+    width: number,
+    height: number,
+  ) {
     if (!image) return;
-    const side = Math.min(image.naturalWidth, image.naturalHeight) / zoom;
-    const left = ((image.naturalWidth - side) * (position.x + 1)) / 2;
-    const top = ((image.naturalHeight - side) * (position.y + 1)) / 2;
+    const left = ((image.naturalWidth - cropWidth) * (position.x + 1)) / 2;
+    const top = ((image.naturalHeight - cropHeight) * (position.y + 1)) / 2;
     context.fillStyle = "white";
-    context.fillRect(0, 0, size, size);
-    context.drawImage(image, left, top, side, side, 0, 0, size, size);
+    context.fillRect(0, 0, width, height);
+    context.drawImage(
+      image,
+      left,
+      top,
+      cropWidth,
+      cropHeight,
+      0,
+      0,
+      width,
+      height,
+    );
   }
 
   useEffect(() => {
     const context = canvas.current?.getContext("2d");
-    if (context) draw(context, 560);
+    if (context) draw(context, 560, Math.round(560 / aspect));
   });
 
   async function save() {
@@ -65,10 +86,11 @@ export function PhotoCropDialog({
     setError("");
     try {
       const output = document.createElement("canvas");
-      output.width = output.height = 800;
+      output.width = cover ? 1600 : 800;
+      output.height = Math.round(output.width / aspect);
       const context = output.getContext("2d");
       if (!context) throw new Error();
-      draw(context, 800);
+      draw(context, output.width, output.height);
       const blob = await new Promise<Blob>((resolve, reject) =>
         output.toBlob(
           (value) => (value ? resolve(value) : reject(new Error())),
@@ -77,7 +99,11 @@ export function PhotoCropDialog({
         ),
       );
       await onSave(
-        new File([blob], "profile-photo.jpg", { type: "image/jpeg" }),
+        new File(
+          [blob],
+          cover ? "business-background.jpg" : "profile-photo.jpg",
+          { type: "image/jpeg" },
+        ),
       );
     } catch {
       setError("The photo could not be saved. Please try again.");
@@ -90,21 +116,29 @@ export function PhotoCropDialog({
   return (
     <dialog
       ref={dialog}
-      className="photo-crop-dialog"
+      className={`photo-crop-dialog ${cover ? "background-crop-dialog" : ""}`}
       aria-labelledby="photo-crop-title"
       onCancel={(event) => {
         event.preventDefault();
         if (!busy) onCancel();
       }}
     >
-      <h2 id="photo-crop-title">Adjust your photo</h2>
-      <p>Drag the photo and adjust the zoom to fit the circle.</p>
+      <h2 id="photo-crop-title">
+        {cover ? "Crop background photo" : "Adjust your photo"}
+      </h2>
+      <p>
+        {cover
+          ? "Drag and zoom to frame your business background."
+          : "Drag the photo and adjust the zoom to fit the circle."}
+      </p>
       <canvas
         ref={canvas}
         width={560}
-        height={560}
-        className="photo-crop-preview"
-        aria-label="Circular photo preview"
+        height={Math.round(560 / aspect)}
+        className={`photo-crop-preview ${cover ? "photo-crop-preview-cover" : ""}`}
+        aria-label={
+          cover ? "Background photo crop preview" : "Circular photo preview"
+        }
         onPointerDown={(event) => {
           if (!image || busy) return;
           event.currentTarget.setPointerCapture(event.pointerId);
@@ -117,11 +151,11 @@ export function PhotoCropDialog({
         }}
         onPointerMove={(event) => {
           if (!drag.current || !image || busy) return;
-          const side = Math.min(image.naturalWidth, image.naturalHeight) / zoom;
+
           const scale =
-            event.currentTarget.getBoundingClientRect().width / side;
-          const horizontal = (image.naturalWidth - side) * scale;
-          const vertical = (image.naturalHeight - side) * scale;
+            event.currentTarget.getBoundingClientRect().width / cropWidth;
+          const horizontal = (image.naturalWidth - cropWidth) * scale;
+          const vertical = (image.naturalHeight - cropHeight) * scale;
           setPosition({
             x: horizontal
               ? clamp(
